@@ -1,70 +1,136 @@
-function plot_stage5_intermediate(cfg, ecc, R_near, R_far)
+function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
 % PLOT_STAGE5_INTERMEDIATE  Show construction of the spot, edge and border
-%   decision variables. One figure, one row per DV (spot, edge, border):
+%   decision variables.
+%   plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
+%
+%   One figure, one row per DV:
 %     col 1  response cloud with the trained quadratic boundary (grid, no ticks)
 %     col 2  each feature's proportional contribution to classification d'
 %            (classify_normals d_con; see plot_dcon_bar)
 %     col 3  resulting 1D DV distributions for near vs. far pairs
 %   The response-cloud axis labels are coloured to match the contribution-bar
 %   sections, tying each feature to its share of d'.
+%
+%   Whether the artifact was trained with colour (dbnd.ha/hb present) decides
+%   the layout: achromatic-only shows 3 rows (spot, edge, border); colour shows
+%   5 (achromatic spot, chromatic spot, full spot, edge, border) -- branching on
+%   the artifact, not cfg.features.color, so the figure always matches what it
+%   is plotting.
+%
+% Inputs
+%   cfg           - config struct.
+%   ecc           - eccentricity divisor, used to load the decision-bounds file.
+%   R_near, R_far - response matrices for near/far pairs (pair_responses format).
+%   col           - column-layout struct (from pair_responses /
+%                   s5_train_decision_vars / compute_demo_responses) giving the
+%                   R_near/R_far column layout.
+% Output
+%   none (draws the figure)
+%
+% See also PLOT_STAGE5, PLOT_DCON_BAR, APPLY_DV, DECISION_BOUNDS_FILENAME
     if isempty(R_near), return; end
-    tag = num2str(ecc);
 
     try
-        S = load(fullfile(cfg.paths.models, ['decision_bounds_ecc_' tag '.mat']), 'dbnd');
-        dbndh = S.dbnd.h;
-        dbnde = S.dbnd.e;
-        dbndb = S.dbnd.b;
+        S = load(fullfile(cfg.paths.models, decision_bounds_filename(cfg, ecc)), 'dbnd');
+        dbnd = S.dbnd;
     catch
         return;
     end
-    dvh = quad2fun(dbndh, 0);
-    dve = quad2fun(dbnde, 0);
-    dvb = quad2fun(dbndb, 0);
+    dve = quad2fun(dbnd.e, 0);
+    dvb = quad2fun(dbnd.b, 0);
+    colour_mode = isfield(dbnd, 'ha');
 
-    figure('Name', 'Stage 5A: Spot, Edge & Border DV Construction', 'Position', [120 60 1300 950]);
+    if colour_mode
+        nrows = 5;
+        figure('Name', 'Stage 5A: Spot, Edge & Border DV Construction', ...
+            'Position', [120 40 1300 1500]);
+        dvha = quad2fun(dbnd.ha, 0);
+        dvhb = quad2fun(dbnd.hb, 0);
+        dvh2 = quad2fun(dbnd.h,  0);   % combiner over [achromatic spot DV, chromatic spot DV]
+
+        % ==========================================
+        % ROW 1: ACHROMATIC SPOT DV  (features col.spot_achr)
+        % ==========================================
+        near_ha = R_near(:, col.spot_achr);  far_ha = R_far(:, col.spot_achr);
+        subplot(nrows, 3, 1);
+        local_scatter3_bd(dvha, near_ha, far_ha, {'Achromatic', 'CS-Small', 'CS-Large'});
+        title('Constructing Achromatic Spot DV');
+        subplot(nrows, 3, 2);
+        plot_dcon_bar(near_ha, far_ha, {'A', 'CS-small', 'CS-large'});
+        subplot(nrows, 3, 3);
+        local_dv_hist(dvha, near_ha, far_ha, 'Achromatic Spot DV');
+        dv_legend();
+
+        % ==========================================
+        % ROW 2: CHROMATIC SPOT DV  (features col.spot_chrom)
+        % ==========================================
+        near_hb = R_near(:, col.spot_chrom);  far_hb = R_far(:, col.spot_chrom);
+        subplot(nrows, 3, 4);
+        local_scatter2_bd(dvhb, near_hb, far_hb, {'B (blue-yellow)', 'R (red-green)'});
+        title('Constructing Chromatic Spot DV');
+        subplot(nrows, 3, 5);
+        plot_dcon_bar(near_hb, far_hb, {'B', 'R'});
+        subplot(nrows, 3, 6);
+        local_dv_hist(dvhb, near_hb, far_hb, 'Chromatic Spot DV');
+
+        % ==========================================
+        % ROW 3: FULL SPOT DV  ([achromatic spot DV, chromatic spot DV])
+        % ==========================================
+        near_h2 = [apply_dv(dvha, near_ha), apply_dv(dvhb, near_hb)];
+        far_h2  = [apply_dv(dvha, far_ha),  apply_dv(dvhb, far_hb)];
+        subplot(nrows, 3, 7);
+        local_scatter2_bd(dvh2, near_h2, far_h2, {'Achromatic Spot DV', 'Chromatic Spot DV'});
+        title('Constructing Full Spot DV');
+        subplot(nrows, 3, 8);
+        plot_dcon_bar(near_h2, far_h2, {'achromatic', 'chromatic'});
+        subplot(nrows, 3, 9);
+        local_dv_hist(dvh2, near_h2, far_h2, 'Full Spot DV');
+
+        row_edge = 10;  row_border = 13;
+    else
+        nrows = 3;
+        figure('Name', 'Stage 5A: Spot, Edge & Border DV Construction', ...
+            'Position', [120 60 1300 950]);
+        dvh = quad2fun(dbnd.h, 0);
+
+        % ==========================================
+        % ROW 1: SPOT DV  (features col.spot = [1 13 14])
+        % ==========================================
+        near_h = R_near(:, col.spot);  far_h = R_far(:, col.spot);
+        subplot(nrows, 3, 1);
+        local_scatter3_bd(dvh, near_h, far_h, {'Achromatic', 'CS-Small', 'CS-Large'});
+        title('Constructing Spot DV');
+        subplot(nrows, 3, 2);
+        plot_dcon_bar(near_h, far_h, {'A', 'CS-small', 'CS-large'});
+        subplot(nrows, 3, 3);
+        local_dv_hist(dvh, near_h, far_h, 'Spot DV');
+        dv_legend();
+
+        row_edge = 4;  row_border = 7;
+    end
 
     % ==========================================
-    % ROW 1: SPOT DV  (features [1 13 14])
+    % ROW: EDGE DV  (features col.edge)
     % ==========================================
-    near_h = R_near(:, 1:3);  far_h = R_far(:, 1:3);
-    subplot(3, 3, 1);
-    local_scatter3_bd(dvh, near_h, far_h, {'Achromatic', 'CS-Small', 'CS-Large'});
-    title('Constructing Spot DV');
-
-    subplot(3, 3, 2);
-    plot_dcon_bar(near_h, far_h, {'A', 'CS-small', 'CS-large'});
-
-    subplot(3, 3, 3);
-    local_dv_hist(dvh, near_h, far_h, 'Spot DV');
-    dv_legend();
-
-    % ==========================================
-    % ROW 2: EDGE DV  (features [5 9 10])
-    % ==========================================
-    near_e = R_near(:, 4:6);  far_e = R_far(:, 4:6);
-    subplot(3, 3, 4);
+    near_e = R_near(:, col.edge);  far_e = R_far(:, col.edge);
+    subplot(nrows, 3, row_edge);
     local_scatter3_bd(dve, near_e, far_e, {'Edge Mag', 'Bar Mag', 'Bar Ori'});
     title('Constructing Edge DV');
-
-    subplot(3, 3, 5);
+    subplot(nrows, 3, row_edge + 1);
     plot_dcon_bar(near_e, far_e, {'edge mag', 'bar mag', 'bar ori'});
-
-    subplot(3, 3, 6);
+    subplot(nrows, 3, row_edge + 2);
     local_dv_hist(dve, near_e, far_e, 'Edge DV');
 
     % ==========================================
-    % ROW 3: BORDER DV  (features [rb1 rb2])
+    % ROW: BORDER DV  (features col.border)
     % ==========================================
-    near_b = R_near(:, 8:9);  far_b = R_far(:, 8:9);
-    subplot(3, 3, 7);
+    near_b = R_near(:, col.border);  far_b = R_far(:, col.border);
+    subplot(nrows, 3, row_border);
     local_scatter2_bd(dvb, near_b, far_b, {'Border Edge Mag', 'Border Bar Mag'});
     title('Constructing Border DV');
-
-    subplot(3, 3, 8);
+    subplot(nrows, 3, row_border + 1);
     plot_dcon_bar(near_b, far_b, {'border edge', 'border bar'});
-
-    subplot(3, 3, 9);
+    subplot(nrows, 3, row_border + 2);
     local_dv_hist(dvb, near_b, far_b, 'Border DV');
 end
 
@@ -75,14 +141,20 @@ function local_scatter3_bd(dv, near_pts, far_pts, labels)
 % axis labels coloured to match the d'-contribution bar sections (lines(dim)).
     dcol = lines(numel(labels));
     hold on;
-    scatter3(far_pts(:,1),  far_pts(:,2),  far_pts(:,3),  2, 'r', 'filled', 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
-    scatter3(near_pts(:,1), near_pts(:,2), near_pts(:,3), 2, 'b', 'filled', 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
+    scatter3(far_pts(:,1),  far_pts(:,2),  far_pts(:,3),  2, 'r', 'filled', ...
+        'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
+    scatter3(near_pts(:,1), near_pts(:,2), near_pts(:,3), 2, 'b', 'filled', ...
+        'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
 
-    x_min = min([near_pts(:,1); far_pts(:,1)]) - 1; x_max = max([near_pts(:,1); far_pts(:,1)]) + 1;
-    y_min = min([near_pts(:,2); far_pts(:,2)]) - 1; y_max = max([near_pts(:,2); far_pts(:,2)]) + 1;
-    z_min = min([near_pts(:,3); far_pts(:,3)]) - 1; z_max = max([near_pts(:,3); far_pts(:,3)]) + 1;
+    x_min = min([near_pts(:,1); far_pts(:,1)]) - 1;
+    x_max = max([near_pts(:,1); far_pts(:,1)]) + 1;
+    y_min = min([near_pts(:,2); far_pts(:,2)]) - 1;
+    y_max = max([near_pts(:,2); far_pts(:,2)]) + 1;
+    z_min = min([near_pts(:,3); far_pts(:,3)]) - 1;
+    z_max = max([near_pts(:,3); far_pts(:,3)]) + 1;
 
-    [Xg, Yg, Zg] = meshgrid(linspace(x_min, x_max, 40), linspace(y_min, y_max, 40), linspace(z_min, z_max, 40));
+    [Xg, Yg, Zg] = meshgrid(linspace(x_min, x_max, 40), linspace(y_min, y_max, 40), ...
+        linspace(z_min, z_max, 40));
     V = reshape(apply_dv(dv, [Xg(:), Yg(:), Zg(:)]), size(Xg));
     fv = isosurface(Xg, Yg, Zg, V, 0);
     if ~isempty(fv.vertices)
@@ -101,8 +173,10 @@ function local_scatter2_bd(dv, near_pts, far_pts, labels)
 % Ticks off, grid on, axis labels coloured to match the contribution bar.
     dcol = lines(numel(labels));
     hold on;
-    scatter(far_pts(:,1),  far_pts(:,2),  2, 'r', 'filled', 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
-    scatter(near_pts(:,1), near_pts(:,2), 2, 'b', 'filled', 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
+    scatter(far_pts(:,1),  far_pts(:,2),  2, 'r', 'filled', 'MarkerEdgeColor', 'none', ...
+        'MarkerFaceAlpha', 0.6);
+    scatter(near_pts(:,1), near_pts(:,2), 2, 'b', 'filled', 'MarkerEdgeColor', 'none', ...
+        'MarkerFaceAlpha', 0.6);
 
     x_min = min([near_pts(:,1); far_pts(:,1)]) - 1; x_max = max([near_pts(:,1); far_pts(:,1)]) + 1;
     y_min = min([near_pts(:,2); far_pts(:,2)]) - 1; y_max = max([near_pts(:,2); far_pts(:,2)]) + 1;
@@ -129,8 +203,10 @@ end
 function local_dv_hist(dv, near_pts, far_pts, xlab)
 % Overlaid near/far histograms of the scalar decision variable, current axes.
     hold on;
-    histogram(apply_dv(dv, far_pts),  'FaceColor', 'r', 'Normalization', 'pdf', 'EdgeColor', 'none', 'FaceAlpha', 0.6);
-    histogram(apply_dv(dv, near_pts), 'FaceColor', 'b', 'Normalization', 'pdf', 'EdgeColor', 'none', 'FaceAlpha', 0.6);
+    histogram(apply_dv(dv, far_pts),  'FaceColor', 'r', 'Normalization', 'pdf', ...
+        'EdgeColor', 'none', 'FaceAlpha', 0.6);
+    histogram(apply_dv(dv, near_pts), 'FaceColor', 'b', 'Normalization', 'pdf', ...
+        'EdgeColor', 'none', 'FaceAlpha', 0.6);
     set(gca, 'YTick', []);
     xlabel(xlab);
 end

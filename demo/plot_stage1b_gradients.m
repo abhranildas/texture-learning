@@ -44,13 +44,25 @@ function plot_stage1b_gradients(cfg, coeff)
 %   shared sampler (sample_isolated_patches), rotated to ABR, A channel taken, then
 %   per-patch CONTRAST-normalized (vislab.lib.cntrst_norm) before the steerable
 %   responses. PCA is on those linear responses (a genuine linear decorrelation).
+%
+% Inputs
+%   cfg   - config struct.
+%   coeff - [3 x 3] learned LMS->ABR rotation (optional; full mode only).
+% Output
+%   none (draws the figure)
+%
+% See also VISLAB.LIB.STEERABLE_KERNELS, VISLAB.LIB.CNTRST_NORM, PLOT_STAGE1,
+%   PLOT_STAGE2
 
-    nsd     = 6;                      % kernel width (SDs) for a SMOOTH illustration; the model itself uses cfg.dv.nsd1 = 3
-    sd_list = [1 2 4 8];              % sigma=1 is the model's current scale; capped so nsd*sigma fits a 64px patch
+    % kernel width (SDs) for a SMOOTH illustration; the model itself uses cfg.dv.nsd1 = 3
+    nsd = 6;
+    % sigma=1 is the model's current scale; capped so nsd*sigma fits a 64px patch
+    sd_list = [1 2 4 8];
     n_scales = numel(sd_list);
-    psz     = cfg.patch.size;         % 64 px: the 1-deg patch the same/different features run on
-    c0      = cfg.norm.target_contrast;      % target RMS contrast for the per-patch contrast norm (matches stage 2)
-    scatter_pts = cfg.demo.scatter_points;   % shared cap for the SCATTER only; PCA uses every sampled point
+    patch_size = cfg.patch.size;     % 64 px: the 1-deg patch the same/different features run on
+    % target RMS contrast for the per-patch contrast norm (matches stage 2)
+    target_contrast = cfg.norm.target_contrast;
+    scatter_pts = cfg.demo.scatter_points;   % cap for the SCATTER only (PCA uses every sample)
 
     files = list_natural_images(cfg);
     if isempty(files)
@@ -69,10 +81,11 @@ function plot_stage1b_gradients(cfg, coeff)
 
     % --- steerable kernels; check every one fits inside a 64px patch ---
     max_hw = ceil(nsd * max(sd_list) / 2);   % border lost to the largest kernel
-    vpx = psz - 2 * max_hw;                  % valid interior per patch (shared across scales)
+    vpx = patch_size - 2 * max_hw;           % valid interior per patch (shared across scales)
     if vpx < 1
         error('plot_stage1b:filterTooLarge', ...
-              'sigma=%d filter (%dpx) does not fit in a %dpx patch.', max(sd_list), nsd*max(sd_list), psz);
+              'sigma=%d filter (%dpx) does not fit in a %dpx patch.', ...
+              max(sd_list), nsd*max(sd_list), patch_size);
     end
     KHc = cell(1, n_scales); KVc = cell(1, n_scales);
     for i = 1:n_scales
@@ -84,8 +97,9 @@ function plot_stage1b_gradients(cfg, coeff)
     %     of how many images (one in quick mode, all in full mode). Features run on
     %     each patch ALONE (no surrounding context), so we crop the largest kernel's
     %     border and keep the identical valid interior at every scale. ---
-    nsmp = ceil(cfg.natural.target_isolated_patches / numel(files));
-    fprintf('stage 1b: sampling %d patches from %d image(s)...\n', numel(files) * nsmp, numel(files));
+    n_samples = ceil(cfg.natural.target_isolated_patches / numel(files));
+    fprintf('stage 1b: sampling %d patches from %d image(s)...\n', ...
+        numel(files) * n_samples, numel(files));
     % Same ingestion + patch sampling as stage 2's priors: source_to_lms (optics)
     % then the shared sample_isolated_patches (mean-normalized patches). One
     % independent image per iteration -> parfor (runs serially without the Parallel
@@ -94,21 +108,24 @@ function plot_stage1b_gradients(cfg, coeff)
     prescale = 255 / cfg.natural.max_val;
     Hc = cell(1, numel(files));
     Vc = cell(1, numel(files));
-    if numel(files) > 1, nw = Inf; else, nw = 0; end   % one image (quick mode): stay serial, no pool
+    if numel(files) > 1, nw = Inf; else, nw = 0; end   % one image (quick mode): serial, no pool
     parfor (f = 1:numel(files), nw)
         [~, fname, fext] = fileparts(files{f});
         fprintf('sampling %s\n', [fname, fext]);
         img_lms = vislab.nat_stat_bayes.source_to_lms(files{f}, cfg, struct('prescale', prescale));
-        patches = sample_isolated_patches(img_lms, nsmp, psz, cfg);  % shared with stage 23 priors
-        Hf = zeros(nsmp * vpx^2, n_scales);  % this image's horizontal responses
-        Vf = zeros(nsmp * vpx^2, n_scales);  % this image's vertical responses
+        patches = sample_isolated_patches(img_lms, n_samples, patch_size, cfg);  % as in stage 23
+        Hf = zeros(n_samples * vpx^2, n_scales);  % this image's horizontal responses
+        Vf = zeros(n_samples * vpx^2, n_scales);  % this image's vertical responses
         r = 0;
-        for k = 1:nsmp
+        for k = 1:n_samples
             abr = vislab.nat_stat_bayes.apply_color_rotation(patches(:, :, :, k), coeff);
-            patch = vislab.lib.cntrst_norm(abr(:, :, 1), c0, psz);   % A channel, contrast-normalized (matches stage 2 gradient priors)
+            % A channel, contrast-normalized (matches stage 2 gradient priors)
+            patch = vislab.lib.cntrst_norm(abr(:, :, 1), target_contrast, patch_size);
             for i = 1:n_scales
-                gh = conv2(patch, KHc{i}, 'same'); gh = gh(max_hw+1:end-max_hw, max_hw+1:end-max_hw);
-                gv = conv2(patch, KVc{i}, 'same'); gv = gv(max_hw+1:end-max_hw, max_hw+1:end-max_hw);
+                gh = conv2(patch, KHc{i}, 'same');
+                gh = gh(max_hw+1:end-max_hw, max_hw+1:end-max_hw);
+                gv = conv2(patch, KVc{i}, 'same');
+                gv = gv(max_hw+1:end-max_hw, max_hw+1:end-max_hw);
                 Hf(r+1:r+vpx^2, i) = gh(:);
                 Vf(r+1:r+vpx^2, i) = gv(:);
             end
@@ -123,13 +140,14 @@ function plot_stage1b_gradients(cfg, coeff)
 
     % --- statistics: PCA on the JOINT horizontal+vertical set (like the deck) ---
     % Column order of R_all is [H sigma1..N, V sigma1..N].
-    C_raw = corrcoef(R_all);                                           % (2*n_scales) square
-    [pca_coeff, ~, ~, ~, explained] = pca(R_all);                      % joint PCA -> PCs come in H/V pairs
-    [~, scoreH] = pca(H);                                              % H-only PCA scores (= H-dominant joint PCs, since H_|_V), for the decorrelation scatter
+    C_raw = corrcoef(R_all);                                    % (2*n_scales) square
+    [pca_coeff, ~, ~, ~, explained] = pca(R_all);               % joint PCA -> PCs come in H/V pairs
+    % H-only PCA scores (= H-dominant joint PCs, since H_|_V), for the decorrelation scatter
+    [~, scoreH] = pca(H);
     nf = 2 * n_scales;
 
-    feat_kernels = [KHc, KVc];                        % raw kernel for each feature column
-    feat_sigma   = [sd_list, sd_list];                % sigma per feature column (for the corr-matrix ticks)
+    feat_kernels = [KHc, KVc];           % raw kernel for each feature column
+    feat_sigma   = [sd_list, sd_list];   % sigma per feature column (for the corr-matrix ticks)
 
     % pad every feature kernel to a common K x K
     K = ceil(nsd * max(sd_list));
@@ -159,13 +177,17 @@ function plot_stage1b_gradients(cfg, coeff)
            'Position', [40 40 1500 980]);
     t = tiledlayout(3, 6, 'TileSpacing', 'compact', 'Padding', 'compact');
     t.Units = 'normalized'; t.OuterPosition = [0 0 1 0.93];   % leave a top strip for the title
-    if numel(files) > 1, src_txt = sprintf('%d natural images', numel(files)); else, src_txt = 'one natural image'; end
+    if numel(files) > 1
+        src_txt = sprintf('%d natural images', numel(files));
+    else
+        src_txt = 'one natural image';
+    end
     annotation(gcf, 'textbox', [0.1 0.94 0.8 0.05], ...
-        'String', sprintf('Stage 1b: joint dist. of gradients at different scales (%s)', src_txt), ...
-        'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
+        'String', sprintf('Stage 1b: joint dist. of gradients at different scales (%s)', ...
+        src_txt), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
         'FontWeight', 'bold', 'FontSize', 12, 'EdgeColor', 'none');
 
-    sc = n_scales:-1:1;                                                % scale order, largest sigma first
+    sc = n_scales:-1:1;   % scale order, largest sigma first
     sig_sc_lab = arrayfun(@(s) sprintf('\\sigma=%d', s), sd_list(sc), 'UniformOutput', false);
 
     % --- Row 1a: raw steerable filters, single grid (H top row, V bottom row) ---
@@ -176,21 +198,25 @@ function plot_stage1b_gradients(cfg, coeff)
     title('raw steerable filters');
 
     % --- Row 1b: PCA filters, single grid (H-dominant PCs top, V-dominant bottom) ---
-    h_pcs = find(pc_isH);  v_pcs = find(~pc_isH);                      % each variance-sorted; column j is the j-th H/V pair
+    % each sorted by variance; column j is the j-th H/V pair
+    h_pcs = find(pc_isH);  v_pcs = find(~pc_isH);
     nexttile([1 3]);
-    imagesc(local_kernel_grid(pc_filt(h_pcs), pc_filt(v_pcs), K)); axis image; clim([-1 1]); colormap(gca, gray); hold on;
+    imagesc(local_kernel_grid(pc_filt(h_pcs), pc_filt(v_pcs), K));
+    axis image; clim([-1 1]); colormap(gca, gray); hold on;
     set(gca, 'XTick', [], 'YTick', [0.5 1.5] * K, 'YTickLabel', {'H', 'V'}, 'TickLength', [0 0]);
     for j = 1:numel(h_pcs)
-        text((j-1)*K + 1, 1,     sprintf('PC%d', h_pcs(j)), 'VerticalAlignment', 'top', 'FontSize', 8, 'Color', 'w');
+        text((j-1)*K + 1, 1, sprintf('PC%d', h_pcs(j)), ...
+             'VerticalAlignment', 'top', 'FontSize', 8, 'Color', 'w');
     end
     for j = 1:numel(v_pcs)
-        text((j-1)*K + 1, K + 1, sprintf('PC%d', v_pcs(j)), 'VerticalAlignment', 'top', 'FontSize', 8, 'Color', 'w');
+        text((j-1)*K + 1, K + 1, sprintf('PC%d', v_pcs(j)), ...
+             'VerticalAlignment', 'top', 'FontSize', 8, 'Color', 'w');
     end
     title('PCA filters');
 
     % --- Row 2a: raw H responses at the 3 largest scales (correlated cloud) ---
     nobs = size(H, 1);
-    si   = randperm(nobs, min(nobs, scatter_pts));                    % random subsample for a readable scatter
+    si   = randperm(nobs, min(nobs, scatter_pts));   % random subsample for a readable scatter
     big3 = sc(1:3);                                                    % 3 largest scales
     nexttile([1 3]);
     scatter3(H(si, big3(1)), H(si, big3(2)), H(si, big3(3)), 3, 'k', '.');
@@ -218,11 +244,14 @@ function plot_stage1b_gradients(cfg, coeff)
     imagesc(C_raw, [-1 1]); axis image; colormap(gca, cmap_div); colorbar; hold on;
     plot([hv hv], [0.5 nf+0.5], 'k-', 'LineWidth', 1.2);
     plot([0.5 nf+0.5], [hv hv], 'k-', 'LineWidth', 1.2);
-    set(gca, 'XTick', 1:nf, 'XTickLabel', sig_lab, 'YTick', 1:nf, 'YTickLabel', sig_lab, 'TickLength', [0 0]);
+    set(gca, 'XTick', 1:nf, 'XTickLabel', sig_lab, 'YTick', 1:nf, 'YTickLabel', sig_lab, ...
+             'TickLength', [0 0]);
     text(th, -0.9, 'H', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
-    text(n_scales+th, -0.9, 'V', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
+    text(n_scales+th, -0.9, 'V', ...
+         'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
     text(-1.6, th, 'H', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
-    text(-1.6, n_scales+th, 'V', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
+    text(-1.6, n_scales+th, 'V', ...
+         'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
     xlabel('\sigma'); ylabel('\sigma');
     title('steerable response correlations');
 
@@ -233,7 +262,8 @@ function plot_stage1b_gradients(cfg, coeff)
     plot([0.5 nf+0.5], [hv hv], 'k-', 'LineWidth', 1.2);   % divide H rows from V rows
     set(gca, 'XTick', 1:nf, 'YTick', 1:nf, 'YTickLabel', sig_lab, 'TickLength', [0 0]);
     text(-1.6, th, 'H', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
-    text(-1.6, n_scales+th, 'V', 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
+    text(-1.6, n_scales+th, 'V', ...
+         'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'Clipping', 'off');
     xlabel('principal component'); ylabel('\sigma');
     title('PCA coefficients');
 

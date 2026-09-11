@@ -1,25 +1,39 @@
 function plot_stage7(cfg, out, method, itype, ecc)
 % PLOT_STAGE7  Generate sample GTR images and show the ground-truth regions
 %   next to the model's segmentation output.
+%   plot_stage7(cfg, out, method, itype, ecc)
+%
+% Inputs
+%   cfg    - config struct.
+%   out    - struct from s7_segment_gtr, giving the (mc, dgc) merge-parameter
+%            sweep (out.nregs5_ave, out.mc, out.dgc) to pick the optimum from.
+%   method - self-supervised decision method, 'nc' or 'bc' (see self_sup_decision).
+%   itype  - texture database id (load_texture_images itype).
+%   ecc    - eccentricity divisor (patch geometry is divided by it).
+% Output
+%   none (draws the figure)
+%
+% See also S7_SEGMENT_GTR, SEGMENTATION.GROUP_PATCHES, OVERLAY_REGION_BOUNDARIES
     fprintf('Generating a sample GTR image and segmenting it for visual output...\n');
 
-    [~, idx] = max(out.nregs5_ave, [], 'all', 'linear');
+    [best, idx] = max(out.nregs5_ave, [], 'all', 'linear');
     [ki, li] = ind2sub(size(out.nregs5_ave), idx);
     mc_opt = out.mc(ki);
     dgc_opt = out.dgc(li);
 
     szp = cfg.gtr.szp;
-    psz = cfg.patch.size / ecc;
+    patch_size = cfg.patch.size / ecc;
     ntexr = cfg.gtr.n_regions;
 
-    cstat = zeros(1,20); cstat([1 5 9 10 13 14]) = 5;   % spot [1 13 14] + edge DV [5 9 10]
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, double(cfg.optics.apply));
+    cstat = zeros(1,20); cstat(cfg.features.dv_dims) = 5;   % spot + edge DV dims
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, ...
+        double(cfg.optics.apply));
     dv = load_dv_handles(cfg, ecc, true);
     [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc);
 
-    figure('Name', 'Stage 7: Segmentation Result', 'Position', [400 200 1200 800]);
+    figure('Name', 'Stage 7: GTR Segmentation', 'Position', [400 200 1200 800]);
 
-    ss_method = struct('nc', 'c_shft', 'ncb', 'bc_noshift').(method);
+    ss_method = struct('nc', 'c_shft', 'ncb', 'bc').(method);
 
     n_examples = 3;
     for ex = 1:n_examples
@@ -28,7 +42,8 @@ function plot_stage7(cfg, out, method, itype, ecc)
         map = map3(:, :, 1);
         [pimg, px, py] = make_gtr_image(cfg, imgr, imgg, imgb, texs(1,:), map);
 
-        phiall = segmentation.content_similarity_matrix(pimg, psz, px, py, bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
+        phiall = segmentation.content_similarity_matrix(pimg, patch_size, px, py, bin_bounds, ...
+            n_bins, dv.h, dv.e, dv.c, cfg);
         rho = segmentation.mutual_similarity(phiall);
 
         R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv);
@@ -39,38 +54,35 @@ function plot_stage7(cfg, out, method, itype, ecc)
         [~, J] = max(row_best);
         gcopt = gc_vec(J); wmopt = wm_vec(col_at(J));
 
-        [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, psz, px, py, psz, bin_bounds, n_bins, dv, cfg);
+        [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, patch_size, px, py, ...
+            patch_size, bin_bounds, n_bins, dv, cfg);
         mu = (phi + wmopt * rho) .* (phi ~= 0);
 
         cc_opt = 1.1;
-        [~, ~, groups2d] = segmentation.group_patches(mu, dst, gcopt + dgc_opt, cc_opt, psz, px, py, phiall, mc_opt);
+        [~, ~, groups2d] = segmentation.group_patches(mu, dst, gcopt + dgc_opt, cc_opt, ...
+            patch_size, px, py, phiall, mc_opt);
 
-        % Use mean across channels to ensure a pure grayscale base image
-        pimg_gray = mean(double(pimg), 3);
-        pimg_norm = pimg_gray - min(pimg_gray(:));
-        pimg_norm = pimg_norm / max(pimg_norm(:));
-        pimg_rgb = repmat(pimg_norm, [1 1 3]);
+        % pimg is LMS (true source colour: grayscale for Brodatz, colour for Fabric
+        % etc -- see make_gtr_image); patch_to_rgb_display shows it as it really is.
+        pimg_rgb = patch_to_rgb_display(cfg, pimg, 'lms');
 
         % Upsample maps to image resolution
         map_up = imresize(map, [size(pimg,1), size(pimg,2)], 'nearest');
         groups_up = imresize(groups2d, [size(pimg,1), size(pimg,2)], 'nearest');
 
-        subplot(n_examples, 3, (ex-1)*3 + 1);
-        image(pimg_rgb); axis image off;
-        if ex == 1, title('Raw GTR Image'); end
-
-        subplot(n_examples, 3, (ex-1)*3 + 2);
+        subplot(n_examples, 2, (ex-1)*2 + 1);
         image(pimg_rgb); axis image off; hold on;
-        h = imagesc(map_up); colormap(gca, 'jet');
-        set(h, 'AlphaData', 0.4);
-        if ex == 1, title('Ground Truth Regions'); end
+        overlay_region_boundaries(map_up);
+        if ex == 1, title('GTR Image (Ground Truth Regions)'); end
 
-        subplot(n_examples, 3, (ex-1)*3 + 3);
+        subplot(n_examples, 2, (ex-1)*2 + 2);
         image(pimg_rgb); axis image off; hold on;
-        h2 = imagesc(groups_up); colormap(gca, 'jet');
-        set(h2, 'AlphaData', 0.4);
+        overlay_region_boundaries(groups_up);
         if ex == 1, title('Segmented Output'); end
 
         drawnow; % update UI
     end
+
+    sgtitle(sprintf('Stage 7: GTR Segmentation (Accuracy: %.1f%% fully-correct regions)', ...
+        100 * best));
 end

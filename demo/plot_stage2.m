@@ -1,6 +1,18 @@
 function plot_stage2(cfg, ecc)
 % PLOT_STAGE2  Show the natural feature priors (PDFs) and the
 %   task-optimized adaptive bins for the spot, edge and bar features.
+%   plot_stage2(cfg, ecc)
+%
+%   In colour mode, adds the B (blue-yellow) and R (red-green) pixel priors
+%   alongside the achromatic spot features.
+%
+% Inputs
+%   cfg  - config struct.
+%   ecc  - eccentricity divisor, used only to name the saved priors file.
+% Output
+%   none (draws the figure)
+%
+% See also PRIOR_FILENAME, VISLAB.NAT_STAT_BAYES.LOAD_BIN_BOUNDS, PLOT_STAGE1B_GRADIENTS
     out_path = fullfile(cfg.paths.models, prior_filename(cfg, ecc));
     if ~isfile(out_path), return; end
     priors = load(out_path);
@@ -13,10 +25,13 @@ function plot_stage2(cfg, ecc)
         ecc_idx = find(S.eccs == ecc, 1);
     end
 
-    figure('Name', 'Stage 2: Natural Priors, and task-optimized bins', 'Position', [100 100 800 1000]);
+    if cfg.features.color, nrows = 5; else, nrows = 4; end
+    figure('Name', 'Stage 2: Natural Priors, and task-optimized bins', ...
+        'Position', [100 100 800 nrows*250]);
     sgtitle('Stage 2: Natural Priors, and task-optimized bins');
 
-    trunc_xlim = @(e, N) xlim([e(max(1, find(N >= 0.01, 1, 'first'))), e(max(1, find(N >= 0.99, 1, 'first')))]);
+    trunc_xlim = @(e, N) xlim([e(max(1, find(N >= 0.01, 1, 'first'))), ...
+        e(max(1, find(N >= 0.99, 1, 'first')))]);
 
     % Base size for 5x5 kernel
     sz5 = 0.05;
@@ -24,7 +39,7 @@ function plot_stage2(cfg, ecc)
     sz3 = sz5 * (3/5);
 
     function plot_feature(ax_idx, e, N, dim, xl_str)
-        subplot(4,2,ax_idx);
+        subplot(nrows,2,ax_idx);
         pdf = diff([0, N]); % PDF from CDF
         plot(e(1:end-1), pdf, 'LineWidth', 2); hold on;
         set(gca, 'YTick', []); % Remove y-axis ticks for PDF plots
@@ -37,42 +52,66 @@ function plot_stage2(cfg, ecc)
         xlabel(xl_str);
     end
 
-    % --- SPOT FEATURES (Rows 1 & 2) ---
+    % --- SPOT FEATURES (Rows 1 & 2; +B/R rows if colour) ---
     % 1. Achromatic (Dim 1)
     plot_feature(1, priors.ea, priors.Na, 1, 'Achromatic');
 
+    if cfg.features.color
+        % 1b. Blue-Yellow pixel (Dim 2)
+        plot_feature(2, priors.eb, priors.Nb, 2, 'Blue-Yellow (B) Pixel');
+    end
+
     % 2. Center-Surround Small (Dim 13)
     plot_feature(3, priors.ecs2, priors.Ncs2, 13, 'Center-Surround (Small)');
-    pos6 = get(gca, 'Position'); axes('Position', [pos6(1)+pos6(3)-0.01-sz3, pos6(2)+0.02, sz3, sz3]);
+    pos6 = get(gca, 'Position');
+    axes('Position', [pos6(1)+pos6(3)-0.01-sz3, pos6(2)+0.02, sz3, sz3]);
     imagesc([-1 -1 -1; -1 8 -1; -1 -1 -1]); colormap(gca, gray); axis image off;
 
+    if cfg.features.color
+        % 2b. Red-Green pixel (Dim 3)
+        plot_feature(4, priors.er, priors.Nr, 3, 'Red-Green (R) Pixel');
+        cs_large_idx = 5;
+    else
+        cs_large_idx = 4;
+    end
+
     % 3. Center-Surround Large (Dim 14)
-    plot_feature(4, priors.ecs4, priors.Ncs4, 14, 'Center-Surround (Large)');
-    pos7 = get(gca, 'Position'); axes('Position', [pos7(1)+pos7(3)-0.01-sz5, pos7(2)+0.02, sz5, sz5]);
+    plot_feature(cs_large_idx, priors.ecs4, priors.Ncs4, 14, 'Center-Surround (Large)');
+    pos7 = get(gca, 'Position');
+    axes('Position', [pos7(1)+pos7(3)-0.01-sz5, pos7(2)+0.02, sz5, sz5]);
     k_lg = -ones(5); k_lg(3,3) = 24;
     imagesc(k_lg); colormap(gca, gray); axis image off;
 
-    % --- EDGE FEATURES (Row 3) ---
+    % --- EDGE FEATURES ---
+    % skip the empty slot beside CS-Large's row
+    if cfg.features.color, edge_row = 7; else, edge_row = 5; end
+
     % 4. 1st Deriv Magnitude / Edge (Dim 5)
-    plot_feature(5, priors.em, priors.Nm, 5, '1st Deriv (Edge) Magnitude');
-    pos2 = get(gca, 'Position'); axes('Position', [pos2(1)+pos2(3)-0.01-sz3, pos2(2)+0.02, sz3, sz3]);
+    plot_feature(edge_row, priors.em, priors.Nm, 5, '1st Deriv (Edge) Magnitude');
+    pos2 = get(gca, 'Position');
+    axes('Position', [pos2(1)+pos2(3)-0.01-sz3, pos2(2)+0.02, sz3, sz3]);
     imagesc([-1 0 1; -2 0 2; -1 0 1]); colormap(gca, gray); axis image off;
 
     % 5. 1st Deriv Orientation / Edge (Dim 6)
-    plot_feature(6, priors.eo, priors.No, 6, '1st Deriv (Edge) Orientation (degrees)');
+    plot_feature(edge_row+1, priors.eo, priors.No, 6, '1st Deriv (Edge) Orientation (degrees)');
     xlim([-180 180]); xticks([-180 0 180]);
-    pos3 = get(gca, 'Position'); axes('Position', [pos3(1)+pos3(3)-0.01-sz3, pos3(2)+0.02, sz3, sz3]);
+    pos3 = get(gca, 'Position');
+    axes('Position', [pos3(1)+pos3(3)-0.01-sz3, pos3(2)+0.02, sz3, sz3]);
     imagesc([-1 0 1; -2 0 2; -1 0 1]); colormap(gca, gray); axis image off;
 
-    % --- BAR FEATURES (Row 4) ---
+    % --- BAR FEATURES ---
+    bar_row = edge_row + 2;
+
     % 6. 2nd Deriv Magnitude / Bar (Dim 9)
-    plot_feature(7, priors.em2, priors.Nm2, 9, '2nd Deriv (Bar) Magnitude');
-    pos4 = get(gca, 'Position'); axes('Position', [pos4(1)+pos4(3)-0.01-sz3, pos4(2)+0.02, sz3, sz3]);
+    plot_feature(bar_row, priors.em2, priors.Nm2, 9, '2nd Deriv (Bar) Magnitude');
+    pos4 = get(gca, 'Position');
+    axes('Position', [pos4(1)+pos4(3)-0.01-sz3, pos4(2)+0.02, sz3, sz3]);
     imagesc([-1 2 -1; -1 2 -1; -1 2 -1]); colormap(gca, gray); axis image off;
 
     % 7. 2nd Deriv Orientation / Bar (Dim 10)
-    plot_feature(8, priors.eo2, priors.No2, 10, '2nd Deriv (Bar) Orientation (degrees)');
+    plot_feature(bar_row+1, priors.eo2, priors.No2, 10, '2nd Deriv (Bar) Orientation (degrees)');
     xlim([-90 90]); xticks([-90 0 90]);
-    pos5 = get(gca, 'Position'); axes('Position', [pos5(1)+pos5(3)-0.01-sz3, pos5(2)+0.02, sz3, sz3]);
+    pos5 = get(gca, 'Position');
+    axes('Position', [pos5(1)+pos5(3)-0.01-sz3, pos5(2)+0.02, sz3, sz3]);
     imagesc([-1 2 -1; -1 2 -1; -1 2 -1]); colormap(gca, gray); axis image off;
 end

@@ -19,14 +19,17 @@ function plot_stage8_natural(cfg, out7, method, ecc)
 %   Inputs
 %     cfg    - config struct.
 %     out7   - the struct returned by s7_segment_gtr (for its optimal mc/dgc).
-%     method - 'ncb' (border+content) or 'nc' (content); default 'ncb'.
+%     method - 'ncb' (refit the whole bc bound on this image; true per-image NCB)
+%              or 'nc' (shift only the content DV); default 'ncb'.
 %     ecc    - eccentricity (default 1).
+%
+% See also S7_SEGMENT_GTR, SEGMENTATION.GROUP_PATCHES, PATCH_TO_RGB_DISPLAY
 
     if nargin < 3 || isempty(method), method = 'ncb'; end
     if nargin < 4 || isempty(ecc),    ecc = 1;       end
-    ss_method = struct('nc', 'c_shft', 'ncb', 'bc_noshift').(method);
+    ss_method = struct('nc', 'c_shft', 'ncb', 'bc').(method);
 
-    psz    = cfg.patch.size / ecc;
+    patch_size = cfg.patch.size / ecc;
     cc_opt = 1.1;                                    % confidence criterion (as in s7)
 
     % --- best (mc, dgc) from the GTR sweep: no ground truth here to tune them ---
@@ -44,42 +47,47 @@ function plot_stage8_natural(cfg, out7, method, ecc)
         idx = 1;
     end
     prescale = 255 / cfg.natural.max_val;
-    pimg = vislab.nat_stat_bayes.source_to_lms(files{idx}, cfg, struct('prescale', prescale, 'ecc', ecc));
-    npx = floor(size(pimg, 1) / psz);        % patch rows
-    npy = floor(size(pimg, 2) / psz);        % patch cols
-    if npx < 2 || npy < 2
+    pimg = vislab.nat_stat_bayes.source_to_lms(files{idx}, cfg, ...
+        struct('prescale', prescale, 'ecc', ecc));
+    pimg = imresize(pimg, 0.5);              % halve the image before segmenting
+    n_patch_rows = floor(size(pimg, 1) / patch_size);
+    n_patch_cols = floor(size(pimg, 2) / patch_size);
+    if n_patch_rows < 2 || n_patch_cols < 2
         fprintf('stage 8: natural image too small (%dx%d) for a %dpx grid.\n', ...
-                size(pimg, 1), size(pimg, 2), psz);
+                size(pimg, 1), size(pimg, 2), patch_size);
         return;
     end
-    pimg = pimg(1:npx*psz, 1:npy*psz, :);    % top-left crop, whole patches in each dim
+    % top-left crop, whole patches in each dim
+    pimg = pimg(1:n_patch_rows*patch_size, 1:n_patch_cols*patch_size, :);
     fprintf('stage 8: segmenting a %dx%d natural image (%dx%d patches of %dpx)...\n', ...
-            npx*psz, npy*psz, npx, npy, psz);
+            n_patch_rows*patch_size, n_patch_cols*patch_size, n_patch_rows, n_patch_cols, ...
+            patch_size);
 
-    % patch index -> grid (row, col), row-major (linear index = (row-1)*npy + col)
-    patch_x = zeros(npx*npy, 1);
-    patch_y = zeros(npx*npy, 1);
-    p = 0;
-    for r = 1:npx
-        for c = 1:npy
-            p = p + 1;
-            patch_x(p) = r;
-            patch_y(p) = c;
+    % patch index -> grid (row, col), row-major (linear index = (row-1)*n_patch_cols + col)
+    patch_x = zeros(n_patch_rows*n_patch_cols, 1);
+    patch_y = zeros(n_patch_rows*n_patch_cols, 1);
+    patch_idx = 0;
+    for patch_row = 1:n_patch_rows
+        for patch_col = 1:n_patch_cols
+            patch_idx = patch_idx + 1;
+            patch_x(patch_idx) = patch_row;
+            patch_y(patch_idx) = patch_col;
         end
     end
 
     % --- artifacts: bin bounds + trained DV handles (same as s7) ---
-    cstat = zeros(1, 20); cstat([1 5 9 10 13 14]) = 5;   % spot [1 13 14] + edge DV [5 9 10]
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, double(cfg.optics.apply));
+    cstat = zeros(1, 20); cstat(cfg.features.dv_dims) = 5;   % spot + edge DV dims
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, ...
+        double(cfg.optics.apply));
     dv = load_dv_handles(cfg, ecc, true);
 
     % --- content similarity + mutual similarity ---
-    phiall = segmentation.content_similarity_matrix(pimg, psz, patch_x, patch_y, ...
+    phiall = segmentation.content_similarity_matrix(pimg, patch_size, patch_x, patch_y, ...
         bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
     rho = segmentation.mutual_similarity(phiall);
 
     % --- learn gcopt/wmopt self-supervised (proximity only; dummy map for the unused labels) ---
-    dummy_map = zeros(npx, npy);
+    dummy_map = zeros(n_patch_rows, n_patch_cols);
     R = neighbor_far_responses(cfg, pimg, rho, dummy_map, bin_bounds, n_bins, dv);
     [qbs, qbd] = self_sup_decision(ss_method, R, dv);
     gc_vec = 0 : 0.8 : 8;  wm_vec = 0 : 0.8 : 9.6;
@@ -89,17 +97,23 @@ function plot_stage8_natural(cfg, out7, method, ecc)
     gcopt = gc_vec(J);  wmopt = wm_vec(col_at(J));
 
     % --- neighbour similarity + combined mu, then group into regions ---
-    [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, psz, patch_x, patch_y, ...
-        psz, bin_bounds, n_bins, dv, cfg);
+    [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, patch_size, patch_x, patch_y, ...
+        patch_size, bin_bounds, n_bins, dv, cfg);
     mu = (phi + wmopt * rho) .* (phi ~= 0);
     [~, ~, groups2d] = segmentation.group_patches(mu, dst, gcopt + dgc_opt, cc_opt, ...
-        psz, patch_x, patch_y, phiall, mc_opt);
+        patch_size, patch_x, patch_y, phiall, mc_opt);
 
     % --- plot: natural image beside its segmentation overlay ---
-    pimg_gray = mean(double(pimg), 3);
-    pimg_norm = pimg_gray - min(pimg_gray(:));
-    pimg_norm = pimg_norm / max(pimg_norm(:));
-    pimg_rgb  = repmat(pimg_norm, [1 1 3]);
+    % pimg is LMS (true source colour, always 3-channel regardless of mode -- unlike
+    % stage 7's GTR images, a natural image is never grayscale on its own). In
+    % achromatic mode the model only ever sees the rotated A channel, so display
+    % that (not the true colour) to match what's actually being segmented.
+    if cfg.features.color
+        pimg_rgb = patch_to_rgb_display(cfg, pimg, 'lms');
+    else
+        pimg_a   = vislab.nat_stat_bayes.apply_color_rotation(pimg);
+        pimg_rgb = patch_to_rgb_display(cfg, pimg_a(:, :, 1), 'lms');
+    end
     groups_up = imresize(groups2d, [size(pimg, 1), size(pimg, 2)], 'nearest');
     nreg = numel(unique(groups2d(groups2d > 0)));
 
@@ -108,7 +122,7 @@ function plot_stage8_natural(cfg, out7, method, ecc)
     image(pimg_rgb); axis image off; title('Natural image');
     subplot(1, 2, 2);
     image(pimg_rgb); axis image off; hold on;
-    h = imagesc(groups_up); colormap(gca, 'jet'); set(h, 'AlphaData', 0.4);
+    overlay_region_boundaries(groups_up);
     title(sprintf('Self-supervised segmentation (%d regions)', nreg));
     drawnow;
 end

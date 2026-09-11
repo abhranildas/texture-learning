@@ -14,6 +14,14 @@ function plot_stage1(cfg, coeff)
 %   elongated/correlated, the ABR cloud is decorrelated (PCA axes). The RGB->LMS
 %   step uses the real lab camera calibration (vislab.lib.rgb2lms); only the
 %   LMS->ABR rotation is learned in Stage 1.
+%
+% Inputs
+%   cfg   - config struct.
+%   coeff - [3 x 3] learned LMS->ABR rotation (optional; full mode only).
+% Output
+%   none (draws the figure)
+%
+% See also PLOT_STAGE1B_GRADIENTS, VISLAB.LIB.RGB2LMS
 
     max_pts = cfg.demo.scatter_points;   % shared cap on plotted points
 
@@ -39,19 +47,19 @@ function plot_stage1(cfg, coeff)
         per_img = max(1, ceil(max_pts / numel(files)));   % spread the cap across images
         rgb_pts = zeros(per_img * numel(files), 3);
         lms_pts = zeros(per_img * numel(files), 3);
-        n = 0;
-        for f = 1:numel(files)
-            img_f = double(imread(files{f}));
+        n_collected = 0;
+        for file_idx = 1:numel(files)
+            img_f = double(imread(files{file_idx}));
             if size(img_f, 3) == 1, img_f = repmat(img_f, [1 1 3]); end
             rgb_f = reshape(img_f, [], 3);
             lms_f = reshape(vislab.lib.rgb2lms(img_f), [], 3);
             idx = randi(size(rgb_f, 1), per_img, 1);       % random pixels from this image
-            rgb_pts(n+1:n+per_img, :) = rgb_f(idx, :);
-            lms_pts(n+1:n+per_img, :) = lms_f(idx, :);
-            n = n + per_img;
+            rgb_pts(n_collected+1:n_collected+per_img, :) = rgb_f(idx, :);
+            lms_pts(n_collected+1:n_collected+per_img, :) = lms_f(idx, :);
+            n_collected = n_collected + per_img;
         end
-        rgb_pts = rgb_pts(1:n, :);
-        lms_pts = lms_pts(1:n, :);
+        rgb_pts = rgb_pts(1:n_collected, :);
+        lms_pts = lms_pts(1:n_collected, :);
     else
         img_f = double(imread(files{1}));
         if size(img_f, 3) == 1, img_f = repmat(img_f, [1 1 3]); end
@@ -78,7 +86,7 @@ function plot_stage1(cfg, coeff)
 
     subplot(2, 3, 4); scatter3(rgb_pts(:,1), rgb_pts(:,2), rgb_pts(:,3), 3, 'k', '.');
     title('1. RGB Space'); xlabel('R'); ylabel('G'); zlabel('B');
-    grid on; set(gca, 'XTickLabel', [], 'YTickLabel', [], 'ZTickLabel', []);   % no tick labels, keep grid
+    grid on; set(gca, 'XTickLabel', [], 'YTickLabel', [], 'ZTickLabel', []);   % no ticks, keep grid
 
     subplot(2, 3, 5); scatter3(lms_pts(:,1), lms_pts(:,2), lms_pts(:,3), 3, 'k', '.');
     title('2. LMS Cone Space'); xlabel('L'); ylabel('M'); zlabel('S');
