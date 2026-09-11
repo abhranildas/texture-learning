@@ -272,7 +272,7 @@ Order (check off each step as it's completed):
       to untangle.
 - [x] **4. `twin-net/` (11 files, 847 lines).** Do the camelCase→snake_case identifier
       unification as one decision applied across all 11 at once, not file by file.
-- [ ] **5. Root: `config.m`, `setup.m`, `run_demo.m` (547 lines).** Last, because `config.m`'s
+- [x] **5. Root: `config.m`, `setup.m`, `run_demo.m` (547 lines).** Last, because `config.m`'s
       field names are the zone-2 vocabulary every earlier tranche has been citing.
 - [ ] **6. `experiments/adaptive_hist_exp.m` (805 lines).** Alone, last, and possibly not at
       all — it is untracked, it holds 62 of the repo's long lines, and it is exploratory.
@@ -480,3 +480,40 @@ it wasn't needed for the camelCase->snake_case goal.
 Zero lines over 100 characters after reflow -- no documented exceptions needed this time. No new
 bugs found (the tranche's one pre-existing `NOPTS` lint hit in `train_net.m`, a missing semicolon
 on a console-echoing line, is unchanged from the original; adding the `;` would be Tier B).
+
+### Step 5 — Root: `config.m`, `setup.m`, `run_demo.m`
+
+Same backup-vs-HEAD baseline split as Step 3: `config.m` and `run_demo.m` carry pre-existing
+color-extension WIP (confirmed by the user, untouched by this tranche), so `check_tier_a` ran
+against a pre-edit on-disk backup, not `git show HEAD:<file>`; `setup.m` had no dirty diff
+beforehand, so `check_tier_a` ran against HEAD directly. All three pass. Additionally ran
+`config(true)`/`config(false)` on both the backup and the edited copy and confirmed `isequal`
+structs (mod the `repo_root` path, which only differs because the backup lives in the
+scratchpad) -- direct runtime confirmation on top of the structural check, since `config.m` is
+the zone-2 vocabulary source every other tranche cites.
+
+**No `cfg.*` field was renamed, added, or removed by this tranche** -- mechanically diffed the
+sorted `cfg.*` path list between the HEAD copy and the edited file; the only deltas are the
+pre-existing WIP fields (`cfg.features.color`, `cfg.features.dv_dims`,
+`cfg.features.spot_achr_dims`, `cfg.features.spot_chrom_dims`) which predate this pass, plus one
+prose mention of `cfg.paths.natural_images` inside a comment. Added the unit annotations the
+blueprint called for (`ppd` px/deg, `pupil_diameter` mm, `wavelength` nm, `patch.size`/
+`patch.image_size` px, `edge_thresh` in image units, `ecc` = integer divisor not degrees).
+`run_demo.m`'s `rng('shuffle')` (now at line 226, was 201) is byte-for-byte unchanged, and its
+header now explicitly notes the script is non-reproducible by design. Zero lines over 100 chars
+in `config.m`/`run_demo.m`; 5 documented exceptions in `setup.m` (unbreakable URL/message string
+literals, same established pattern as Steps 2/3).
+
+Bugs/inconsistencies found, **not fixed**:
+
+- `run_demo.m`'s "missing artifacts" error text tells the user to set a `run_training_stages`
+  variable that doesn't exist anywhere in the repo -- the actual switch is `demo_type = 'full'`.
+- `run_demo.m`'s `try/catch err/rethrow(err)` around the `s7_segment_gtr` call is a no-op (catches
+  and immediately rethrows).
+- `config.m`'s `cfg.dv.power_suppress` and `cfg.gtr.power_suppress` are coupled only by comment
+  (both must be 16), same class of issue already flagged in Step 1 for
+  `+segmentation/neighbor_similarity_matrix.m` -- nothing enforces it.
+- `setup.m`'s `ensure_addon_on_path` guards an optional 5th argument that both call sites always
+  pass -- dead defensiveness, not a bug.
+- Zone-2 rename candidates spotted for whenever that tranche happens (not touched): `cfg.gtr.szp`,
+  `cfg.gtr.dcrit`, `cfg.gtr.n_regions` (comment still calls it `ntexr`), `cfg.natural.max_val`.
