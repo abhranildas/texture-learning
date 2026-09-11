@@ -1,4 +1,5 @@
-function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, groups2d, content_sim, merge_criterion)
+function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, ...
+        groups2d, content_sim, merge_criterion)
 % MERGE_SIMILAR_REGIONS  Merge the single most-similar pair of touching regions.
 %   [groups, ngrps] = segmentation.merge_similar_regions(groups, ngrps, ...
 %       group_counts, groups2d, content_sim, merge_criterion)
@@ -11,25 +12,35 @@ function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, gr
 %     groups          - group membership (row per group, patch indices).
 %     ngrps           - number of groups.
 %     group_counts    - per-group patch-count + 1 (as produced by group_patches).
-%     groups2d        - 2-D region-label map ([npx x npy]).
+%     groups2d        - 2-D region-label map ([n_grid_rows x n_grid_cols]).
 %     content_sim     - all-pairs content-similarity matrix.
 %     merge_criterion - merge if mean similarity exceeds this (paper: gamma_r).
 %
 %   Outputs
 %     groups, ngrps - updated membership and group count.
+%
+%   See also SEGMENTATION.GROUP_PATCHES, SEGMENTATION.ASSIGN_ISOLATED_PATCHES
 
-    [npx, npy] = size(groups2d);        % grid rows x cols
+    [n_grid_rows, n_grid_cols] = size(groups2d);        % grid rows x cols
 
     % adjacency: which regions touch which (4-neighbour)
     touching = zeros(ngrps, ngrps);
     for k = 1:ngrps
-        for i = 1:npx
-            for j = 1:npy
+        for i = 1:n_grid_rows
+            for j = 1:n_grid_cols
                 if groups2d(i, j) == k
-                    if j < npy && groups2d(i, j+1) ~= k, touching(k, groups2d(i, j+1)) = 1; end
-                    if j > 1   && groups2d(i, j-1) ~= k, touching(k, groups2d(i, j-1)) = 1; end
-                    if i < npx && groups2d(i+1, j) ~= k, touching(k, groups2d(i+1, j)) = 1; end
-                    if i > 1   && groups2d(i-1, j) ~= k, touching(k, groups2d(i-1, j)) = 1; end
+                    if j < n_grid_cols && groups2d(i, j+1) ~= k
+                        touching(k, groups2d(i, j+1)) = 1;
+                    end
+                    if j > 1 && groups2d(i, j-1) ~= k
+                        touching(k, groups2d(i, j-1)) = 1;
+                    end
+                    if i < n_grid_rows && groups2d(i+1, j) ~= k
+                        touching(k, groups2d(i+1, j)) = 1;
+                    end
+                    if i > 1 && groups2d(i-1, j) ~= k
+                        touching(k, groups2d(i-1, j)) = 1;
+                    end
                 end
             end
         end
@@ -67,7 +78,8 @@ function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, gr
         end
     end
     if max_sim > merge_criterion
-        groups(km, group_counts(km)+1 : group_counts(km)+group_counts(lm)) = groups(lm, 1:group_counts(lm));
+        groups(km, group_counts(km)+1 : group_counts(km)+group_counts(lm)) = ...
+            groups(lm, 1:group_counts(lm));
         groups(lm, 1:group_counts(lm)) = 0;
         groups(km, :) = sort(groups(km, :), 'descend');
         for k = lm+1:ngrps

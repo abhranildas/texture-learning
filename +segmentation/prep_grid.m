@@ -1,6 +1,6 @@
-function [P, G, Gn] = prep_grid(image, psz, cfg)
+function [patches, achrom, achrom_norm] = prep_grid(region_image, patch_size, cfg)
 % PREP_GRID  Prepare every patch of the image grid ONCE.
-%   [P, G, Gn] = segmentation.prep_grid(image, psz, cfg)
+%   [patches, achrom, achrom_norm] = segmentation.prep_grid(region_image, patch_size, cfg)
 %
 %   The single source of per-patch preparation shared by
 %   segmentation.content_similarity_matrix, segmentation.neighbor_similarity_matrix
@@ -10,34 +10,43 @@ function [P, G, Gn] = prep_grid(image, psz, cfg)
 %   raw and contrast-normalized achromatic channels -- so the all-pairs / neighbour
 %   loops just index these instead of recomputing.
 %
-%   The grid size follows the image: size(image)/psz patches in each dimension, so
-%   the image may be rectangular (any whole number of patches per side).
+%   The grid size follows the image: size(region_image)/patch_size patches in each
+%   dimension, so the image may be rectangular (any whole number of patches per side).
 %
 %   Inputs
-%     image - texture-region image, [H x W x 3] (H, W each a multiple of psz).
-%     psz   - patch side length in pixels.
-%     cfg   - config struct (uses cfg.norm.target_mean / target_contrast).
+%     region_image - texture-region image, [H x W x 3] (H, W each a multiple of
+%                    patch_size).
+%     patch_size    - patch side length in pixels.
+%     cfg           - config struct (uses cfg.norm.target_mean / target_contrast).
 %
-%   Outputs (each a [H/psz x W/psz] cell, indexed by grid coordinate {gx, gy})
-%     P  - [psz x psz x 3] ABR patch.
-%     G  - [psz x psz] raw achromatic channel (P(:,:,1)), for the power DV.
-%     Gn - [psz x psz] contrast-normalized achromatic channel, for the edge/border DVs.
-    m0 = cfg.norm.target_mean;
-    c0 = cfg.norm.target_contrast;
-    npx = size(image, 1) / psz;      % patch rows
-    npy = size(image, 2) / psz;      % patch cols
-    P  = cell(npx, npy);
-    G  = cell(npx, npy);
-    Gn = cell(npx, npy);
-    for gx = 1:npx
-        for gy = 1:npy
-            rows = (gx - 1) * psz + (1:psz);
-            cols = (gy - 1) * psz + (1:psz);
-            p = vislab.lib.ptch_norm(image(rows, cols, :), m0, c0, 3, 3);
-            p = vislab.nat_stat_bayes.apply_color_rotation(p);   % shared LMS->ABR transform
-            P{gx, gy}  = p;
-            G{gx, gy}  = p(:, :, 1);
-            Gn{gx, gy} = vislab.lib.cntrst_norm(p(:, :, 1), c0, psz);
+%   Outputs (each a [H/patch_size x W/patch_size] cell, indexed by grid coordinate
+%   {grid_row, grid_col})
+%     patches     - [patch_size x patch_size x 3] ABR patch.
+%     achrom      - [patch_size x patch_size] raw achromatic channel (patches(:,:,1)),
+%                   for the power DV.
+%     achrom_norm - [patch_size x patch_size] contrast-normalized achromatic channel,
+%                   for the edge/border DVs.
+%
+%   See also SEGMENTATION.CONTENT_SIMILARITY_MATRIX, SEGMENTATION.NEIGHBOR_SIMILARITY_MATRIX
+
+    target_mean = cfg.norm.target_mean;
+    target_contrast = cfg.norm.target_contrast;
+    n_grid_rows = size(region_image, 1) / patch_size;      % patch rows
+    n_grid_cols = size(region_image, 2) / patch_size;      % patch cols
+    patches     = cell(n_grid_rows, n_grid_cols);
+    achrom      = cell(n_grid_rows, n_grid_cols);
+    achrom_norm = cell(n_grid_rows, n_grid_cols);
+    for grid_row = 1:n_grid_rows
+        for grid_col = 1:n_grid_cols
+            rows = (grid_row - 1) * patch_size + (1:patch_size);
+            cols = (grid_col - 1) * patch_size + (1:patch_size);
+            patch = vislab.lib.ptch_norm( ...
+                region_image(rows, cols, :), target_mean, target_contrast, 3, 3);
+            patch = vislab.nat_stat_bayes.apply_color_rotation(patch);   % shared LMS->ABR transform
+            patches{grid_row, grid_col} = patch;
+            achrom{grid_row, grid_col}  = patch(:, :, 1);
+            achrom_norm{grid_row, grid_col} = ...
+                vislab.lib.cntrst_norm(patch(:, :, 1), target_contrast, patch_size);
         end
     end
 end

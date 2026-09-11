@@ -1,7 +1,7 @@
-function phi = content_similarity_matrix(image, patch_size, patch_x, patch_y, ...
+function phi = content_similarity_matrix(region_image, patch_size, patch_x, patch_y, ...
         bin_bounds, n_bins, dv_spot_fun, dv_edge_fun, dv_content_fun, cfg)
 % CONTENT_SIMILARITY_MATRIX  All-pairs content similarity between image patches.
-%   phi = segmentation.content_similarity_matrix(image, patch_size, ...
+%   phi = segmentation.content_similarity_matrix(region_image, patch_size, ...
 %       patch_x, patch_y, bin_bounds, n_bins, ...
 %       dv_spot_fun, dv_edge_fun, dv_content_fun, cfg)
 %
@@ -12,7 +12,7 @@ function phi = content_similarity_matrix(image, patch_size, patch_x, patch_y, ..
 %   takes preloaded bin bounds + a cfg struct instead of hardcoded constants.)
 %
 %   Inputs
-%     image          - texture-region image, [H x W x 3] (may be rectangular).
+%     region_image   - texture-region image, [H x W x 3] (may be rectangular).
 %     patch_size     - patch side length in pixels.
 %     patch_x,patch_y- patch-index -> grid-coordinate maps (these carry the grid shape).
 %     bin_bounds,n_bins - histogram bin bounds/counts (vislab.nat_stat_bayes.load_bin_bounds).
@@ -23,30 +23,39 @@ function phi = content_similarity_matrix(image, patch_size, patch_x, patch_y, ..
 %
 %   Output
 %     phi - [n x n] symmetric content-similarity matrix (n = number of patches).
+%
+%   See also SEGMENTATION.PREP_GRID, SEGMENTATION.CONTENT_FEATURES,
+%   SEGMENTATION.CONTENT_DV_PAIR, SEGMENTATION.NEIGHBOR_SIMILARITY_MATRIX
 
     n = numel(patch_x);
     spot_dims = cfg.features.spot_dims;     % [1 13 14]
     edge_dims = cfg.features.edge_dv_dims;  % [5 9 10]
-    b0 = cfg.dv.power_suppress;
+    power_suppress = cfg.dv.power_suppress;
 
     % prep every patch once (extract + normalize + rotate; raw and contrast-norm gray)
-    [P, G, Gn] = segmentation.prep_grid(image, patch_size, cfg);
-    if cfg.dv.contrast_normalize, E = Gn; else, E = G; end   % gray fed to the edge DV
+    [patches, achrom, achrom_norm] = segmentation.prep_grid(region_image, patch_size, cfg);
+    if cfg.dv.contrast_normalize                            % gray fed to the edge DV
+        edge_channel = achrom_norm;
+    else
+        edge_channel = achrom;
+    end
 
     % featurize every patch once (power spectrum + spot/edge histograms); the pair
     % loop below then only combines them (segmentation.content_dv_pair).
-    CF = segmentation.content_features(P, G, E, patch_size, bin_bounds, n_bins, spot_dims, edge_dims, cfg);
+    patch_features = segmentation.content_features(patches, achrom, edge_channel, ...
+        patch_size, bin_bounds, n_bins, spot_dims, edge_dims, cfg);
 
     % All-pairs combine is the O(n^2) cost -> parfor over reference patches (runs
     % serially without the Parallel Computing Toolbox). Each iteration fills the upper
     % part of its row; the matrix is symmetrized afterwards.
     phi = zeros(n, n);
     parfor i = 1:n
-        fa = CF{patch_x(i), patch_y(i)};
+        fa = patch_features{patch_x(i), patch_y(i)};
         row = zeros(1, n);
         for j = i+1:n
-            row(j) = segmentation.content_dv_pair(fa, CF{patch_x(j), patch_y(j)}, patch_size, b0, ...
-                dv_spot_fun, dv_edge_fun, dv_content_fun, spot_dims, edge_dims);
+            row(j) = segmentation.content_dv_pair(fa, patch_features{patch_x(j), patch_y(j)}, ...
+                patch_size, power_suppress, dv_spot_fun, dv_edge_fun, dv_content_fun, ...
+                spot_dims, edge_dims);
         end
         phi(i, :) = row;
     end

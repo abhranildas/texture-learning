@@ -1,4 +1,5 @@
-function [masks, maps] = grow_region_masks(n_patches, n_regions, n_trials, seed_radius_frac, coverage)
+function [masks, maps] = grow_region_masks(n_patches, n_regions, n_trials, ...
+        seed_radius_frac, coverage)
 % GROW_REGION_MASKS  Grow random contiguous texture-region masks for GTR images.
 %   [masks, maps] = gtr.grow_region_masks(n_patches, n_regions, n_trials, ...
 %                       seed_radius_frac, coverage)
@@ -19,19 +20,21 @@ function [masks, maps] = grow_region_masks(n_patches, n_regions, n_trials, seed_
 %   Outputs
 %     masks - [n_patches x n_patches x (n_trials*n_regions)] binary region masks.
 %     maps  - [n_patches x n_patches x n_trials] integer region-label maps.
+%
+%   See also GTR.SAMPLE_TEXTURE_IDS
 
     seed_radius = seed_radius_frac * n_patches / 2;
     masks = zeros(n_patches, n_patches, n_trials * n_regions);   % (fix: was n_patches*n_regions)
     maps  = zeros(n_patches, n_patches, n_trials);
 
-    for t = 1:n_trials
+    for trial = 1:n_trials
         map = zeros(n_patches, n_patches);                      % region-label map
         % region(r): patch list, column 1 = count, then interleaved (x,y) coords
         region = zeros(n_regions, round(3 * n_patches^2 / n_regions) + 1);
 
         % --- seed the regions near the center, no two on the same patch ---
         seeds = zeros(n_regions, 2);
-        for r = 1:n_regions
+        for region_id = 1:n_regions
             placed = false;
             while ~placed
                 in_radius = false;
@@ -44,27 +47,28 @@ function [masks, maps] = grow_region_masks(n_patches, n_regions, n_trials, seed_
                 end
                 placed = ~any(seeds(:,1) == x & seeds(:,2) == y);
             end
-            seeds(r,:) = [x, y];
-            map(x, y) = r;
-            region(r,1) = 1; region(r,2) = x; region(r,3) = y;  % first patch of region r
+            seeds(region_id,:) = [x, y];
+            map(x, y) = region_id;
+            % first patch of region_id
+            region(region_id,1) = 1; region(region_id,2) = x; region(region_id,3) = y;
         end
 
         % --- grow the regions until 'coverage' of the grid is filled ---
         while sum(region(:,1)) < coverage * n_patches^2
-            for r = randperm(n_regions)                          % random region order each pass
-                count = region(r,1);
+            for region_id = randperm(n_regions)                  % random region order each pass
+                count = region(region_id,1);
                 k = 1;
                 order = randperm(count);                         % scan patches in random order
-                while count == region(r,1) && k <= count        % stop once one patch is added
-                    x = region(r, 2*order(k));
-                    y = region(r, 2*order(k) + 1);
+                while count == region(region_id,1) && k <= count % stop once one patch is added
+                    x = region(region_id, 2*order(k));
+                    y = region(region_id, 2*order(k) + 1);
                     for side = randperm(4)                       % check 4 sides in random order
                         [free, xn, yn] = neighbor_free(side, x, y, map, n_patches);
                         if free
-                            region(r,1) = region(r,1) + 1;
-                            region(r, 2*(count+1))     = xn;
-                            region(r, 2*(count+1) + 1) = yn;
-                            map(xn, yn) = r;
+                            region(region_id,1) = region(region_id,1) + 1;
+                            region(region_id, 2*(count+1))     = xn;
+                            region(region_id, 2*(count+1) + 1) = yn;
+                            map(xn, yn) = region_id;
                             break;
                         end
                     end
@@ -74,10 +78,10 @@ function [masks, maps] = grow_region_masks(n_patches, n_regions, n_trials, seed_
         end
 
         % --- per-region binary masks and the label map ---
-        for r = 1:n_regions
-            masks(:, :, (t-1)*n_regions + r) = (map == r);
+        for region_id = 1:n_regions
+            masks(:, :, (trial-1)*n_regions + region_id) = (map == region_id);
         end
-        maps(:, :, t) = map;
+        maps(:, :, trial) = map;
     end
 end
 

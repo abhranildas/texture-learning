@@ -13,6 +13,8 @@ function texture_ids = sample_texture_ids(n_textures, n_regions, n_trials)
 %
 %   Output
 %     texture_ids - [n_trials x n_regions] matrix of texture-sheet indices.
+%
+%   See also GTR.GROW_REGION_MASKS
 
     % Build a long list of stacked random permutations of 1:n_textures, then take
     % the first n_regions*n_trials of them (same random-stream usage as the original).

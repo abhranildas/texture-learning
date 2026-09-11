@@ -1,7 +1,7 @@
-function [phi, dst] = neighbor_similarity_matrix(image, patch_size, patch_x, patch_y, ...
+function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch_x, patch_y, ...
         neighbor_distance, bin_bounds, n_bins, dv, cfg)
 % NEIGHBOR_SIMILARITY_MATRIX  Border+content similarity for neighbouring patch pairs.
-%   [phi, dst] = segmentation.neighbor_similarity_matrix(image, ...
+%   [phi, dst] = segmentation.neighbor_similarity_matrix(region_image, ...
 %       patch_size, patch_x, patch_y, neighbor_distance, ...
 %       bin_bounds, n_bins, dv, cfg)
 %
@@ -19,19 +19,27 @@ function [phi, dst] = neighbor_similarity_matrix(image, patch_size, patch_x, pat
 %   Note: per-pair DVs use cfg.gtr.power_suppress (b0=16), matching
 %   neighbor_far_responses and content_similarity_matrix (cfg.dv.power_suppress,
 %   also 16 since Geisler unified b0 -- 2026-07).
+%
+%   See also SEGMENTATION.PREP_GRID, SEGMENTATION.CONTENT_FEATURES,
+%   SEGMENTATION.CONTENT_DV_PAIR, SEGMENTATION.CONTENT_SIMILARITY_MATRIX
 
     n = numel(patch_x);
-    b0 = cfg.gtr.power_suppress;
+    power_suppress = cfg.gtr.power_suppress;
     spot_dims = cfg.features.spot_dims;     % [1 13 14]
     edge_dims = cfg.features.edge_dv_dims;  % [5 9 10]
 
     % prep every patch once (extract + normalize + rotate; raw and contrast-norm gray)
-    [P, G, Gn] = segmentation.prep_grid(image, patch_size, cfg);
-    if cfg.dv.contrast_normalize, E = Gn; else, E = G; end   % gray fed to edge/border DVs
+    [patches, achrom, achrom_norm] = segmentation.prep_grid(region_image, patch_size, cfg);
+    if cfg.dv.contrast_normalize                            % gray fed to edge/border DVs
+        edge_channel = achrom_norm;
+    else
+        edge_channel = achrom;
+    end
 
     % featurize every patch once (power spectrum + spot/edge histograms); the loop
     % combines them per neighbour pair (border DV stays pairwise -- it needs both patches).
-    CF = segmentation.content_features(P, G, E, patch_size, bin_bounds, n_bins, spot_dims, edge_dims, cfg);
+    patch_features = segmentation.content_features(patches, achrom, edge_channel, ...
+        patch_size, bin_bounds, n_bins, spot_dims, edge_dims, cfg);
 
     phi = zeros(n, n);
     dst = zeros(n, n);
@@ -52,13 +60,16 @@ function [phi, dst] = neighbor_similarity_matrix(image, patch_size, patch_x, pat
             else
                 dir = 2;
             end
-            rc = segmentation.content_dv_pair(CF{patch_x(i), patch_y(i)}, CF{patch_x(j), patch_y(j)}, ...
-                patch_size, b0, dv.h, dv.e, dv.c, spot_dims, edge_dims);
-            border = vislab.nat_stat_bayes.dv_border(E{patch_x(i), patch_y(i)}, E{patch_x(j), patch_y(j)}, ...
+            rc = segmentation.content_dv_pair(patch_features{patch_x(i), patch_y(i)}, ...
+                patch_features{patch_x(j), patch_y(j)}, ...
+                patch_size, power_suppress, dv.h, dv.e, dv.c, spot_dims, edge_dims);
+            border = vislab.nat_stat_bayes.dv_border(edge_channel{patch_x(i), patch_y(i)}, ...
+                edge_channel{patch_x(j), patch_y(j)}, ...
                 patch_size, dir, cfg.dv.sd1, cfg.dv.nsd1, false);
             rb = dv.b(border(1:2)');
 
-            phi(i, j) = dv.bc([rc, rb]');               % [content, border] ordering (Geisler-confirmed; matches s5 dbndbc training)
+            % [content, border] ordering (Geisler-confirmed; matches s5 dbndbc training)
+            phi(i, j) = dv.bc([rc, rb]');
             phi(j, i) = phi(i, j);
         end
     end

@@ -6,20 +6,22 @@ function n_correct = count_correct_regions(truth_map, n_truth, est_map, n_est)
 %   region's mask and counts exact matches. (Was reg_count.m.)
 %
 %   Inputs
-%     truth_map - [npx x npy] ground-truth region-label map.
+%     truth_map - [n_grid_rows x n_grid_cols] ground-truth region-label map.
 %     n_truth   - number of ground-truth regions.
-%     est_map   - [npx x npy] estimated region-label map.
+%     est_map   - [n_grid_rows x n_grid_cols] estimated region-label map.
 %     n_est     - number of estimated regions.
 %
 %   Output
 %     n_correct - number of exactly-correct regions.
+%
+%   See also SEGMENTATION.GROUP_PATCHES
 
-    [npx, npy] = size(truth_map);
-    truth_masks = false(n_truth, npx, npy);
+    [n_grid_rows, n_grid_cols] = size(truth_map);
+    truth_masks = false(n_truth, n_grid_rows, n_grid_cols);
     for k = 1:n_truth
         truth_masks(k, :, :) = (truth_map == k);
     end
-    est_masks = false(n_est, npx, npy);
+    est_masks = false(n_est, n_grid_rows, n_grid_cols);
     for k = 1:n_est
         est_masks(k, :, :) = (est_map == k);
     end
