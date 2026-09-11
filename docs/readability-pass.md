@@ -274,7 +274,7 @@ Order (check off each step as it's completed):
       unification as one decision applied across all 11 at once, not file by file.
 - [x] **5. Root: `config.m`, `setup.m`, `run_demo.m` (547 lines).** Last, because `config.m`'s
       field names are the zone-2 vocabulary every earlier tranche has been citing.
-- [ ] **6. `experiments/adaptive_hist_exp.m` (805 lines).** Alone, last, and possibly not at
+- [x] **6. `experiments/adaptive_hist_exp.m` (805 lines).** Alone, last, and possibly not at
       all — it is untracked, it holds 62 of the repo's long lines, and it is exploratory.
       Decide whether it is being kept before spending a session on it.
 
@@ -316,16 +316,23 @@ working through the list in order or several agents working in parallel.
 
 A tranche is finished when all of these hold:
 
-- [ ] `isequal(canon(old), canon_with_renames_reversed(new))` is true for every Tier-A file in
+- [x] `isequal(canon(old), canon_with_renames_reversed(new))` is true for every Tier-A file in
       the tranche, and every Tier-B file's canonical diff matches a whitelisted pattern **and**
       reproduces its golden output bit-for-bit.
-- [ ] Every file in the tranche has a header matching the `watson_otf.m` shape: summary line,
+- [x] Every file in the tranche has a header matching the `watson_otf.m` shape: summary line,
       fully-qualified call signature, `Inputs`/`Output` with **units**, `See also`.
-- [ ] No line exceeds 100 characters.
-- [ ] No identifier from the zone-3 frozen list has been renamed, and no `save`/`load` string
+- [x] No line exceeds 100 characters, except the documented string-literal exceptions logged in
+      section 9 (`pipeline/s4_optimize_bins.m:49`, `s5_train_decision_vars.m:70`,
+      `demo/plot_stage6_pairs.m:87`, five in `setup.m`, one in `run_demo.m`, five in
+      `experiments/adaptive_hist_exp.m`) -- each would require turning a string literal into a
+      `horzcat` expression, a real AST change forbidden by Tier A.
+- [x] No identifier from the zone-3 frozen list has been renamed, and no `save`/`load` string
       literal has changed.
-- [ ] Each package touched has a `Contents.m`.
-- [ ] Bugs found are written down and **not fixed**.
+- [x] Each package touched has a `Contents.m` (`+segmentation/`, `+gtr/`).
+- [x] Bugs found are written down and **not fixed** (see section 9 per-tranche findings).
+
+All 66 in-scope files across all six tranches are Tier-A clean and committed (readability-pass
+commits on `main`, one per step). The pass is complete.
 
 ---
 
@@ -517,3 +524,41 @@ Bugs/inconsistencies found, **not fixed**:
   pass -- dead defensiveness, not a bug.
 - Zone-2 rename candidates spotted for whenever that tranche happens (not touched): `cfg.gtr.szp`,
   `cfg.gtr.dcrit`, `cfg.gtr.n_regions` (comment still calls it `ntexr`), `cfg.natural.max_val`.
+
+### Step 6 — `experiments/adaptive_hist_exp.m` (805 lines, untracked)
+
+The user confirmed this file is being kept, so it got the same treatment as the tracked tranches.
+No HEAD baseline exists (whole file is untracked); verified with `check_tier_a` against a pre-edit
+backup copy in the scratchpad, same method as Steps 3/5.
+
+Rename map applied (new -> old), all file-local: `patch_size`->`psz`, `n_bins`->`nbin`,
+`patches`->`ptch`, `patches_near`->`pn`, `patches_far`->`pf`, `a_priors`->`pri`, `ex_idx`->`e`
+(only the example-pair loop index, 1:2 -- the unrelated local `e` used for SEM in `plot_band` was
+left untouched), `texture_pairs`->`ep`, `is_same`->`esame`, `patches_near_c`->`Pn`,
+`patches_far_c`->`Pf`, `patches_near_b`->`pnB`, `patches_far_b`->`pfB`. `psz`/`patch_size` matches
+the vocabulary settled in Steps 1-2. Bijection asserted and `check_tier_a` MATCH: 1 (MATLAB
+R2024b).
+
+One rename could not extend to a struct field: `hist_gap_collect` saves its patch-size field as
+`D.psz` into `experiments/hist_gap_data.mat`, read back in section 2 as `S.psz`. `check_tier_a`'s
+reverse-substitution regex deliberately excludes anything preceded by `.` (so a struct-field
+access can't be mistaken for the bare identifier), which means a dot-qualified field name is
+outside what this checker can verify as renamed. Confirmed no other file reads
+`hist_gap_data.mat` (it's this script's own private, regenerated-every-run cache), so renaming
+the field would have been safe in principle -- but since the tool can't verify it, the field stays
+`psz` while the local variable holding it is `patch_size`, noted in both places in-file.
+
+Added a `See also` line to the top-of-file header (the file had none, matching the blueprint's
+observation that no in-scope file did). The two near-identical local functions
+`collect_natural`/`collect_brodatz` (now at lines 604/633) were cleaned independently and NOT
+merged, per the blueprint's explicit call-out. All three `rng('shuffle')` calls (now at lines
+69/90/322) are byte-for-byte unchanged.
+
+Zero lines over 100 chars except 5 documented exceptions, all unbreakable string literals (same
+class as Steps 2/3/5's exceptions -- splitting would turn a single string token into a horzcat
+expression, a real AST change): the two `error(...:badSource', "source must be...")` calls
+(108/107 chars) in `hist_gap_collect`/`sample_ab_pairs`, and three `fprintf` format strings (117,
+140, 117 chars) reporting sweep/Brodatz accuracy.
+
+No bugs found beyond what's already visible in-file (the file already documents its own
+constant-volume sampling design and pair-source semantics clearly); nothing new to flag.
