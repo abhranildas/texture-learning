@@ -15,33 +15,36 @@ function [pimg, patch_x, patch_y] = make_gtr_image(cfg, imgr, imgg, imgb, texs_r
 %   Outputs
 %     pimg             - sz x sz x 3 LMS grown-texture-region image.
 %     patch_x, patch_y - sz2 x 1 maps from patch index to grid row/col.
+%
+%   See also LOAD_TEXTURE_IMAGES, GTR.SAMPLE_TEXTURE_IDS, GTR.GROW_REGION_MASKS,
+%   S6_SELFSUP_DISCRIMINATION, S7_SEGMENT_GTR
 
     szp = size(map, 1);
     sz  = size(imgr, 1);
-    psz = sz / szp;
+    patch_size = sz / szp;
     n_regions = numel(texs_row);
-    m0 = cfg.norm.target_mean;
-    iscl = 0;                          % illumination offset (0 = uniform; set >0 for Fig-13-style tests)
+    target_mean = cfg.norm.target_mean;
+    illum_offset = 0;         % illumination offset (0 = uniform; set >0 for Fig-13-style tests)
 
     % region masks (each region's patches expanded to pixels)
     pimg = zeros(sz, sz, 3);
-    for i = 1:n_regions
-        mask = kron(double(map == i), ones(psz));      % szp x szp -> sz x sz
-        k = texs_row(i);
+    for region_idx = 1:n_regions
+        mask = kron(double(map == region_idx), ones(patch_size));      % szp x szp -> sz x sz
+        k = texs_row(region_idx);
         pimg(:, :, 1) = pimg(:, :, 1) + imgr(:, :, k) .* mask;
         pimg(:, :, 2) = pimg(:, :, 2) + imgg(:, :, k) .* mask;
         pimg(:, :, 3) = pimg(:, :, 3) + imgb(:, :, k) .* mask;
     end
 
     % background (outside all regions) -> target mean
-    covered = kron(double(map > 0), ones(psz)) > 0;
+    covered = kron(double(map > 0), ones(patch_size)) > 0;
     outside = repmat(~covered, 1, 1, 3);
-    pimg(outside) = m0;
+    pimg(outside) = target_mean;
 
     % optional per-half illumination scaling
-    if iscl ~= 0
-        scl = (1 + iscl) * ones(sz, 1);
-        scl((1:sz) < sz/2) = 1 - iscl;
+    if illum_offset ~= 0
+        scl = (1 + illum_offset) * ones(sz, 1);
+        scl((1:sz) < sz/2) = 1 - illum_offset;
         pimg = pimg .* scl;
     end
 
@@ -49,12 +52,12 @@ function [pimg, patch_x, patch_y] = make_gtr_image(cfg, imgr, imgg, imgb, texs_r
     sz2 = szp^2;
     patch_x = zeros(sz2, 1);
     patch_y = zeros(sz2, 1);
-    p = 0;
-    for r = 1:szp
-        for c = 1:szp
-            p = p + 1;
-            patch_x(p) = r;
-            patch_y(p) = c;
+    patch_idx = 0;
+    for row = 1:szp
+        for col = 1:szp
+            patch_idx = patch_idx + 1;
+            patch_x(patch_idx) = row;
+            patch_y(patch_idx) = col;
         end
     end
 end

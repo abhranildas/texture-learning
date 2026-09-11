@@ -25,16 +25,30 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
 %     cfg  - config struct (see config.m).
 %     dims - feature dimension(s) (e.g. [1 5 9 10 13 14]; see cfg.features.names).
 %     ecc  - eccentricity downsample factor (1,2,4,8).
+%     autosave - see above; default asks interactively.
+%
+%   Output / side effect
+%     Updates data/models/AHEO_bins.mat / AHE_bins.mat in place for the (dims, ecc)
+%     slots (bin_bounds, n_bins, eccs, btype are the saved field/variable names and
+%     must not be renamed).
+%
+%   See also PRIOR_FILENAME, S23_LEARN_PRIORS_AND_PAIRS, S5_TRAIN_DECISION_VARS
 
     btype   = 5;                          % bound type: natural images = 5
     err_crit = 0.002;                     % min fractional error reduction to keep a split
     max_bins = 100;
-    psz = cfg.patch.size / ecc;
+    patch_size = cfg.patch.size / ecc;
 
     % --- load priors and patch pairs ONCE for all dims ---
     priors = load(fullfile(cfg.paths.models, prior_filename(cfg, ecc)));
 
-    pp = load(fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc)), 'ptchn', 'ptchf');
+    pp = load(fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc)), ...
+        'ptchn', 'ptchf', 'color');
+    if ~isfield(pp, 'color') || pp.color ~= cfg.features.color
+        error('s4_optimize_bins:pairsModeMismatch', ...
+        'patch_pairs_ecc%d.mat does not match cfg.features.color=%d -- rerun s23_learn_priors_and_pairs.', ...
+            ecc, cfg.features.color);
+    end
     ptchn = pp.ptchn;
     ptchf = pp.ptchf;
 
@@ -55,8 +69,8 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
         % Featurize each patch ONCE (bin-independent). The greedy search below only
         % re-bins these values per candidate, instead of recomputing the steerable /
         % center-surround responses for every pair on every candidate split.
-        [near_a, near_b] = feature_values(ptchn, dim, psz, cfg);
-        [far_a,  far_b]  = feature_values(ptchf, dim, psz, cfg);
+        [near_a, near_b] = feature_values(ptchn, dim, patch_size, cfg);
+        [far_a,  far_b]  = feature_values(ptchf, dim, patch_size, cfg);
 
         % --- adaptive histogram equalization: greedy bin splitting ---
         n_edges = numel(prior_p);
@@ -75,7 +89,8 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
             offset = 0;
             for i = 1:n_bins
                 if frozen(i) == 0
-                    [cand_bounds, cand_indices] = vislab.nat_stat_bayes.find_bin_bound(bounds, indices, grown, i + offset, prior_x, prior_p);
+                    [cand_bounds, cand_indices] = vislab.nat_stat_bayes.find_bin_bound( ...
+                        bounds, indices, grown, i + offset, prior_x, prior_p);
                     err = proximity_error(cand_bounds, near_a, near_b, far_a, far_b, cfg);
                     if (prev_err - err) / prev_err > err_crit
                         bounds = cand_bounds;
@@ -110,7 +125,9 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
         dim_str = num2str(dims);
     end
     if nargin < 4 || isempty(autosave)
-        reply = input(sprintf('s4: Save bin bounds to disk and overwrite %s for dims %s? (y/n): ', file, dim_str), 's');
+        reply = input(sprintf( ...
+            's4: Save bin bounds to disk and overwrite %s for dims %s? (y/n): ', ...
+            file, dim_str), 's');
         do_save = strcmpi(reply, 'y');
     else
         do_save = autosave;
@@ -162,14 +179,13 @@ function [prior_x, prior_p] = prior_for_dim(priors, dim)
 end
 
 % ------------------------------------------------------------------------------
-function [Va, Vb] = feature_values(patches, dim, psz, cfg)
+function [Va, Vb] = feature_values(patches, dim, patch_size, cfg)
 % Precompute, ONCE per feature, the per-pair raw values that get histogrammed for
 % `dim` on both patches of every pair -- the bin-INDEPENDENT half of the DV. Uses
 % the same featurizers as the decision variables (vislab spot_features /
 % edge_features), so the values are identical to what dv_spot_hist / dv_edge_hist
 % would compute; only the (bin-dependent) histogram + LLR is deferred to eval_r.
-    m0 = cfg.norm.target_mean;
-    c0 = cfg.norm.target_contrast;
+    target_contrast = cfg.norm.target_contrast;
     is_edge = dim > 3 && dim <= 11;
     feature_list = zeros(1, 20);
     feature_list(dim) = 1;
@@ -177,18 +193,20 @@ function [Va, Vb] = feature_values(patches, dim, psz, cfg)
     Va = cell(n_pairs, 1);
     Vb = cell(n_pairs, 1);
     for i = 1:n_pairs
-        % patches are stored as A (1-channel); patch_to_a passes them through. Older
-        % 3-channel LMS files are normalized+rotated to A here instead (same result).
-        p1 = vislab.nat_stat_bayes.patch_to_a(patches(1:psz, 1:psz, :, i),       m0, c0);
-        p2 = vislab.nat_stat_bayes.patch_to_a(patches(1:psz, psz+1:2*psz, :, i), m0, c0);
+        % patches are already normalized + LMS->ABR-rotated pairs; read as-is (see
+        % pair_responses.m for why no patch_to_a/patch_to_abr call belongs here).
+        p1 = patches(1:patch_size, 1:patch_size, :, i);
+        p2 = patches(1:patch_size, patch_size+1:2*patch_size, :, i);
         if is_edge
-            a1 = vislab.lib.cntrst_norm(p1(:, :, 1), c0, psz);
-            a2 = vislab.lib.cntrst_norm(p2(:, :, 1), c0, psz);
-            fa = vislab.nat_stat_bayes.edge_features(a1, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
-            fb = vislab.nat_stat_bayes.edge_features(a2, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
+            a1 = vislab.lib.cntrst_norm(p1(:, :, 1), target_contrast, patch_size);
+            a2 = vislab.lib.cntrst_norm(p2(:, :, 1), target_contrast, patch_size);
+            fa = vislab.nat_stat_bayes.edge_features( ...
+                a1, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
+            fb = vislab.nat_stat_bayes.edge_features( ...
+                a2, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
         else
-            fa = vislab.nat_stat_bayes.spot_features(p1, psz, feature_list);
-            fb = vislab.nat_stat_bayes.spot_features(p2, psz, feature_list);
+            fa = vislab.nat_stat_bayes.spot_features(p1, patch_size, feature_list);
+            fb = vislab.nat_stat_bayes.spot_features(p2, patch_size, feature_list);
         end
         Va{i} = fa{dim};
         Vb{i} = fb{dim};

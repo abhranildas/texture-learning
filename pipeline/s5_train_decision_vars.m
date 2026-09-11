@@ -1,23 +1,28 @@
-function [near, far] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
+function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
 % S5_TRAIN_DECISION_VARS  Train the near/far decision-variable bounds from patch pairs.
 %   s5_train_decision_vars(cfg, ecc)
 %   s5_train_decision_vars(cfg, ecc, eccb)
 %   s5_train_decision_vars(cfg, ecc, eccb, autosave)
-%   [near, far] = s5_train_decision_vars(...)
+%   [near, far, col] = s5_train_decision_vars(...)
 %
 %   autosave (optional) - true/false to save/skip without asking (used by
 %   run_demo, which confirms once up front); omit to be asked interactively.
 %
 %   Optional outputs near, far are the full per-pair response matrices the bounds
-%   were trained on (columns [rh1 rh2 rh3 re1 re3 re4 rp rb1 rb2]); run_demo reuses
-%   them so the Stage 5 plots show exactly the points training used.
+%   were trained on; COL (struct, see pair_responses) gives the column layout, which
+%   depends on cfg.features.color (3 spot columns achromatic-only, 5 with colour).
+%   run_demo reuses near/far/col so the Stage 5 plots show exactly the points
+%   training used.
 %
 %   Pipeline stage 5 (was nat_near_far_dv_2.m). Using the proximity proxy
 %   (near = "same", far = "different"), computes the power, spot, edge and border
 %   feature responses for all patch pairs, then trains quadratic decision bounds
-%   (via classify_normals) for, in order: spot (h), edge (e), content (c =
-%   power+spot+edge), border (b), and content). Saves the struct of all bounds to
-%   data/models/decision_bounds_ecc_<ecc>.mat.
+%   (via classify_normals) for, in order: spot (h) -- in two steps (achromatic,
+%   chromatic) then combined when cfg.features.color is true, see D3 in
+%   docs/color-extension-plan.md -- edge (e), content (c = power+spot+edge),
+%   border (b), and border+content (bc). Saves the struct of all bounds to
+%   data/models/decision_bounds_ecc_<ecc>.mat (achromatic) or
+%   decision_bounds_ecc_<ecc>_color.mat (colour) -- see decision_bounds_filename.
 %
 %   Run `setup` first; run stages 2-4 before. Requires IntClassNorm
 %   (classify_normals, quad2fun).
@@ -27,110 +32,116 @@ function [near, far] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
 %     ecc  - eccentricity downsample factor of the patch pairs (1,2,4,8).
 %     eccb - eccentricity of the histogram bin bounds to use (default 1, matching the
 %            original; set to ecc to use same-eccentricity bins -- flagged for Geisler).
+%     autosave - see above; default asks interactively.
 %
-%   NOTE: power suppression b0 = 16 here (training) and now also in the content-
-%   similarity computation (cfg.dv.power_suppress=16) -- Geisler unified them (2026-07;
-%   content-sim was 10). Outliers (|log DV| >= 25) are dropped, as in the original.
+%   Outputs
+%     near, far - full per-pair response matrices (rows = kept pairs; see pair_responses).
+%     col       - struct of column-index ranges into near/far (see pair_responses).
+%     dbnd (saved, not returned) - struct of trained quad2fun coefficient sets:
+%       .h/.e/.c/.b/.bc (and .ha/.hb when colour is on), plus .spot_dims/.spot_achr_n.
+%
+%   NOTE: power suppression power_suppress = 16 here (training) and now also in the
+%   content-similarity computation (cfg.dv.power_suppress=16) -- Geisler unified them
+%   (2026-07; content-sim was 10). Outliers (|log DV| >= 25) are dropped, as in the
+%   original.
+%
+%   See also PAIR_RESPONSES, DECISION_BOUNDS_FILENAME, LOAD_DV_HANDLES,
+%   S23_LEARN_PRIORS_AND_PAIRS, S4_OPTIMIZE_BINS
 
     if nargin < 3 || isempty(eccb), eccb = 1; end
-    psz    = cfg.patch.size / ecc;
+    patch_size  = cfg.patch.size / ecc;
     btype  = 5;                            % natural-image bound type
-    b0     = 16;                           % weak-power suppression for training
-    thresh = cfg.dv.edge_thresh;
-    nh     = cfg.features.spot_dims;       % [1 13 14]
-    ne     = cfg.features.edge_dv_dims;    % [5 9 10]
+    power_suppress = 16;                   % weak-power suppression for training
+    edge_thresh = cfg.dv.edge_thresh;
+    spot_dims = cfg.features.spot_dims;    % [1 13 14] achromatic-only, +[2 3] with colour
+    edge_dims = cfg.features.edge_dv_dims; % [5 9 10]
 
-    feature_list = zeros(1, 20);  feature_list([1 5 9 10 13 14]) = 1;   % spot [1 13 14] + edge DV [5 9 10]; 6/7/11 unused
-    cstat        = zeros(1, 20);  cstat([1 5 9 10 13 14]) = btype;
+    feature_list = zeros(1, 20);  feature_list(cfg.features.dv_dims) = 1;
+    cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
 
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, eccb, double(cfg.optics.apply));
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds( ...
+        cstat, eccb, double(cfg.optics.apply));
     % (LMS->ABR rotation is auto-loaded by apply_color_rotation from the shared store)
 
-    pp = load(fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc)), 'ptchn', 'ptchf');
+    pp = load(fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc)), ...
+        'ptchn', 'ptchf', 'color');
+    if ~isfield(pp, 'color') || pp.color ~= cfg.features.color
+        error('s5_train_decision_vars:pairsModeMismatch', ...
+        'patch_pairs_ecc%d.mat does not match cfg.features.color=%d -- rerun s23_learn_priors_and_pairs.', ...
+            ecc, cfg.features.color);
+    end
 
-    % response matrices: columns [rh1 rh2 rh3 re1 re3 re4 rp rb1 rb2], rows = kept pairs
-    near = pair_responses(pp.ptchn, bin_bounds, n_bins, feature_list, nh, ne, b0, thresh, psz, cfg);
-    far  = pair_responses(pp.ptchf, bin_bounds, n_bins, feature_list, nh, ne, b0, thresh, psz, cfg);
+    % response matrices (columns given by COL: spot/edge/power/border), rows = kept pairs
+    [near, ~, col] = pair_responses(pp.ptchn, bin_bounds, n_bins, feature_list, ...
+        spot_dims, edge_dims, power_suppress, edge_thresh, patch_size, cfg);
+    far = pair_responses(pp.ptchf, bin_bounds, n_bins, feature_list, ...
+        spot_dims, edge_dims, power_suppress, edge_thresh, patch_size, cfg);
+    fprintf('s5: %d near / %d far pairs kept after outlier rejection (of %d each)\n', ...
+        size(near,1), size(far,1), size(pp.ptchn,4));
 
-    % spot (h): features [1 13 14]
-    dbndh = train_bound(near(:, 1:3), far(:, 1:3));
-    dvh = quad2fun(dbndh, 0);
+    % spot (h): achromatic-only trains one bound; with colour, train achromatic (ha) and
+    % chromatic (hb) sub-bounds first, then a bound over the two resulting DVs (D3).
+    if isempty(cfg.features.spot_chrom_dims)
+        dbnd.h = train_bound(near(:, col.spot), far(:, col.spot));
+        dvh = quad2fun(dbnd.h, 0);
+    else
+        dbnd.ha = train_bound(near(:, col.spot_achr),  far(:, col.spot_achr));
+        dbnd.hb = train_bound(near(:, col.spot_chrom), far(:, col.spot_chrom));
+        dvha = quad2fun(dbnd.ha, 0);
+        dvhb = quad2fun(dbnd.hb, 0);
+        spot_near = [apply_dv(dvha, near(:, col.spot_achr)), ...
+            apply_dv(dvhb, near(:, col.spot_chrom))];
+        spot_far  = [apply_dv(dvha, far(:,  col.spot_achr)), ...
+            apply_dv(dvhb, far(:,  col.spot_chrom))];
+        dbnd.h = train_bound(spot_near, spot_far);
+        dvh_2d = quad2fun(dbnd.h, 0);
+        n_achr = numel(cfg.features.spot_achr_dims);
+        dvh = @(x) dvh_2d([dvha(x(1:n_achr)); dvhb(x(n_achr+1:end))]);
+    end
 
-    % edge (e): features [5 9 10]
-    dbnde = train_bound(near(:, 4:6), far(:, 4:6));
-    dve = quad2fun(dbnde, 0);
+    % edge (e): features cfg.features.edge_dv_dims
+    dbnd.e = train_bound(near(:, col.edge), far(:, col.edge));
+    dve = quad2fun(dbnd.e, 0);
 
     % content (c): [power, spot DV, edge DV]
-    content_near = [near(:, 7), apply_dv(dvh, near(:, 1:3)), apply_dv(dve, near(:, 4:6))];
-    content_far  = [far(:, 7),  apply_dv(dvh, far(:, 1:3)),  apply_dv(dve, far(:, 4:6))];
-    dbndc = train_bound(content_near, content_far);
-    dvc = quad2fun(dbndc, 0);
+    content_near = [near(:, col.power), apply_dv(dvh, near(:, col.spot)), ...
+        apply_dv(dve, near(:, col.edge))];
+    content_far  = [far(:, col.power),  apply_dv(dvh, far(:, col.spot)), ...
+        apply_dv(dve, far(:, col.edge))];
+    dbnd.c = train_bound(content_near, content_far);
+    dvc = quad2fun(dbnd.c, 0);
 
-    % border (b): features [rb1 rb2]
-    dbndb = train_bound(near(:, 8:9), far(:, 8:9));
-    dvb = quad2fun(dbndb, 0);
+    % border (b): the two border-response columns
+    dbnd.b = train_bound(near(:, col.border), far(:, col.border));
+    dvb = quad2fun(dbnd.b, 0);
 
     % border+content (bc): [content DV, border DV]
-    bc_near = [apply_dv(dvc, content_near), apply_dv(dvb, near(:, 8:9))];
-    bc_far  = [apply_dv(dvc, content_far),  apply_dv(dvb, far(:, 8:9))];
-    dbndbc = train_bound(bc_near, bc_far);
+    bc_near = [apply_dv(dvc, content_near), ...
+        apply_dv(dvb, near(:, col.border))];
+    bc_far  = [apply_dv(dvc, content_far), ...
+        apply_dv(dvb, far(:, col.border))];
+    dbnd.bc = train_bound(bc_near, bc_far);
 
-    % save all bounds
-    dbnd.h  = dbndh;
-    dbnd.e  = dbnde;
-    dbnd.c  = dbndc;
-    dbnd.b  = dbndb;
-    dbnd.bc = dbndbc;
-    
-    tag = num2str(ecc);
+    % record the spot layout so load_dv_handles / the demo plots can tell how dbnd.h
+    % must be applied, and catch a config/artifact mismatch loudly instead of silently
+    dbnd.spot_dims   = cfg.features.spot_dims;
+    dbnd.spot_achr_n = numel(cfg.features.spot_achr_dims);
+
+    file = decision_bounds_filename(cfg, ecc);
     if nargin < 4 || isempty(autosave)
-        reply = input(sprintf('s5: Save decision variables to disk and overwrite decision_bounds_ecc_%s.mat? (y/n): ', tag), 's');
+        reply = input(sprintf( ...
+            's5: Save decision variables to disk and overwrite %s? (y/n): ', file), 's');
         do_save = strcmpi(reply, 'y');
     else
         do_save = autosave;
     end
     if do_save
-        save(fullfile(cfg.paths.models, ['decision_bounds_ecc_' tag '.mat']), 'dbnd');
-        fprintf('s5: trained + saved decision_bounds_ecc_%s (%d near, %d far pairs)\n', tag, size(near,1), size(far,1));
+        save(fullfile(cfg.paths.models, file), 'dbnd');
+        fprintf('s5: trained + saved %s (%d near, %d far pairs)\n', ...
+            file, size(near,1), size(far,1));
     else
         fprintf('s5: skipped saving decision variables.\n');
     end
-end
-
-% ------------------------------------------------------------------------------
-function R = pair_responses(patches, bin_bounds, n_bins, feature_list, nh, ne, b0, thresh, psz, cfg)
-% Per-pair [rh1 rh2 rh3 re1 re3 re4 rp rb1 rb2], dropping outliers (|.|>=25 in rh/re/rp).
-    m0 = cfg.norm.target_mean;
-    c0 = cfg.norm.target_contrast;
-    lo = -25; hi = 25;
-    n_pairs = size(patches, 4);
-    R = zeros(n_pairs, 9);
-    n = 0;
-    for i = 1:n_pairs
-        % patches are stored as A (1-channel); patch_to_a passes them through. Older
-        % 3-channel LMS files are normalized+rotated to A here instead (same result).
-        p1 = vislab.nat_stat_bayes.patch_to_a(patches(1:psz, 1:psz, :, i),       m0, c0);
-        p2 = vislab.nat_stat_bayes.patch_to_a(patches(1:psz, psz+1:2*psz, :, i), m0, c0);
-        a1 = p1(:, :, 1);
-        a2 = p2(:, :, 1);
-
-        rp   = log(vislab.nat_stat_bayes.dv_power(a1, a2, b0, psz));
-        spot = vislab.nat_stat_bayes.dv_spot_hist(p1, p2, psz, bin_bounds, n_bins, feature_list);
-        rh = log([spot(nh(1)), spot(nh(2)), spot(nh(3))]);
-
-        a1 = vislab.lib.cntrst_norm(a1, c0, psz);
-        a2 = vislab.lib.cntrst_norm(a2, c0, psz);
-        border = vislab.nat_stat_bayes.dv_border(a1, a2, psz, 2, cfg.dv.sd1, cfg.dv.nsd1, false);
-        edge   = vislab.nat_stat_bayes.dv_edge_hist(a1, a2, thresh, bin_bounds, n_bins, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
-        re = log([edge(ne(1)), edge(ne(2)), edge(ne(3))]);
-
-        check = [rh, re, rp];
-        if all(check > lo) && all(check < hi)
-            n = n + 1;
-            R(n, :) = [rh, re, rp, border(1), border(2)];
-        end
-    end
-    R = R(1:n, :);
 end
 
 % ------------------------------------------------------------------------------
@@ -139,7 +150,8 @@ function bd = train_bound(same, different)
 % the SVM weights each class equally: outlier rejection leaves slightly unequal near/
 % far counts, but the proximity proxy is a symmetric same/different task (50/50), so
 % the bound must not tilt with that artifact.
-    result = classify_normals(same, different, 'input_type', 'samp', 'plotmode', 0, 'samp_balance', true);
+    result = classify_normals(same, different, ...
+        'input_type', 'samp', 'plotmode', 0, 'samp_balance', true);
     bd = result.samp_opt_bd;
 end
 

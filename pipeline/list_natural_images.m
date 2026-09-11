@@ -3,16 +3,21 @@ function files = list_natural_images(cfg)
 %   files = list_natural_images(cfg)
 %
 %   Collects every <set>_*.png in cfg.paths.natural_images for each stem in
-%   cfg.natural.sets. Shared by the natural-image pipeline stages (s1, s2, s4).
+%   cfg.natural.sets. Shared by the natural-image pipeline stages (s1, s23, s4).
+%
+%   Inputs
+%     cfg - config struct (uses cfg.paths.natural_images, cfg.natural.sets).
 %
 %   Output
 %     files - cell array of full file paths.
+%
+%   See also S1_LEARN_COLOR_TRANSFORM, S23_LEARN_PRIORS_AND_PAIRS, S4_OPTIMIZE_BINS
 
     files = {};
-    for s = 1:numel(cfg.natural.sets)
-        d = dir(fullfile(cfg.paths.natural_images, [cfg.natural.sets{s} '_*.png']));
-        for k = 1:numel(d)
-            files{end+1} = fullfile(d(k).folder, d(k).name); %#ok<AGROW>
+    for set_idx = 1:numel(cfg.natural.sets)
+        listing = dir(fullfile(cfg.paths.natural_images, [cfg.natural.sets{set_idx} '_*.png']));
+        for file_idx = 1:numel(listing)
+            files{end+1} = fullfile(listing(file_idx).folder, listing(file_idx).name); %#ok<AGROW>
         end
     end
     if isempty(files)

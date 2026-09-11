@@ -1,29 +1,32 @@
-function s = sample_prior_features(img_lms, nsmp, psz, cfg, coeff)
-% SAMPLE_PRIOR_FEATURES  Sample nsmp isolated patches from one LMS image and return
+function s = sample_prior_features(img_lms, n_samples, patch_size, cfg, coeff)
+% SAMPLE_PRIOR_FEATURES  Sample n_samples isolated patches from one LMS image and return
 %   the raw feature values used to build the natural priors (Stage 23). This is the
 %   single definition of that per-image sampling, used by s23_learn_priors_and_pairs.
 %
 %   Inputs
-%     img_lms - [H x W x 3] LMS image (at the target eccentricity).
-%     nsmp    - number of isolated patches to sample from this image.
-%     psz     - patch size in pixels (cfg.patch.size / ecc).
-%     cfg     - config struct (normalization).
-%     coeff   - LMS->ABR rotation (from Stage 1).
+%     img_lms    - [H x W x 3] LMS image (at the target eccentricity).
+%     n_samples  - number of isolated patches to sample from this image.
+%     patch_size - patch size in pixels (cfg.patch.size / ecc).
+%     cfg        - config struct (normalization).
+%     coeff      - LMS->ABR rotation (from Stage 1).
 %
-%   Output s (columns of sampled values for this image):
+%   Output s (columns of sampled values for this image; field names match
+%   finalize_priors' inputs and must not be renamed):
 %     .lms  [n x 3]      normalized LMS pixels (for the ABR colour-channel CDFs)
 %     .g1m .g1o .g1mo    1st-derivative steerable magnitude / orientation / (m x o)
 %     .g2m .g2o .g2mo    2nd-derivative steerable magnitude / orientation / (m x o)
 %     .cs1 .cs2 .cs4     center-surround ratio / small-linear / large-linear
+%
+%   See also SAMPLE_ISOLATED_PATCHES, FINALIZE_PRIORS, S23_LEARN_PRIORS_AND_PAIRS
 
-    c0        = cfg.norm.target_contrast;
+    target_contrast = cfg.norm.target_contrast;
     thresh    = 0;                       % keep gradient pixels above this (exclude exact zeros)
     sd1 = cfg.dv.sd1; nsd1 = cfg.dv.nsd1; sd2 = cfg.dv.sd2; nsd2 = cfg.dv.nsd2;
     swid = 3;                            % center-surround window (cs_type 4 uses a fixed 5x5)
 
     % isolated patches (mean-normalized), via the shared sampler used by stage 1b too
-    patches = sample_isolated_patches(img_lms, nsmp, psz, cfg);
-    cap = nsmp * psz^2;                  % generous per-image upper bound
+    patches = sample_isolated_patches(img_lms, n_samples, patch_size, cfg);
+    cap = n_samples * patch_size^2;      % generous per-image upper bound
 
     lms   = zeros(cap, 3);   n_lms = 0;
     g1m   = zeros(cap, 1);   g1o = zeros(cap, 1);  g1mo = zeros(cap, 1);  n_g1 = 0;
@@ -32,16 +35,16 @@ function s = sample_prior_features(img_lms, nsmp, psz, cfg, coeff)
     cs2v  = zeros(cap, 1);   n_cs2 = 0;
     cs4v  = zeros(cap, 1);   n_cs4 = 0;
 
-    for k = 1:nsmp
+    for k = 1:n_samples
         patch = patches(:, :, :, k);
 
         % accumulate LMS pixel values (for the colour-channel CDFs after rotation)
-        lms(n_lms+1 : n_lms+psz^2, :) = reshape(patch, [], 3);
-        n_lms = n_lms + psz^2;
+        lms(n_lms+1 : n_lms+patch_size^2, :) = reshape(patch, [], 3);
+        n_lms = n_lms + patch_size^2;
 
         % achromatic (A) channel in ABR space, contrast-normalized
         abr = vislab.nat_stat_bayes.apply_color_rotation(patch, coeff);
-        a = vislab.lib.cntrst_norm(abr(:, :, 1), c0, psz);
+        a = vislab.lib.cntrst_norm(abr(:, :, 1), target_contrast, patch_size);
 
         % 1st-derivative steerable responses (keep above-threshold)
         [gm, go] = vislab.lib.steerable_grad_response(a, sd1, nsd1);
@@ -61,9 +64,12 @@ function s = sample_prior_features(img_lms, nsmp, psz, cfg, coeff)
         n_g2 = n_g2 + m2;
 
         % center-surround responses (ratio, small linear, large linear)
-        cs = vislab.lib.center_surround(a, swid, 1); nc = numel(cs); cs1v(n_cs1+1:n_cs1+nc) = cs(:); n_cs1 = n_cs1 + nc;
-        cs = vislab.lib.center_surround(a, swid, 2); nc = numel(cs); cs2v(n_cs2+1:n_cs2+nc) = cs(:); n_cs2 = n_cs2 + nc;
-        cs = vislab.lib.center_surround(a, swid, 4); nc = numel(cs); cs4v(n_cs4+1:n_cs4+nc) = cs(:); n_cs4 = n_cs4 + nc;
+        cs = vislab.lib.center_surround(a, swid, 1);
+        nc = numel(cs); cs1v(n_cs1+1:n_cs1+nc) = cs(:); n_cs1 = n_cs1 + nc;
+        cs = vislab.lib.center_surround(a, swid, 2);
+        nc = numel(cs); cs2v(n_cs2+1:n_cs2+nc) = cs(:); n_cs2 = n_cs2 + nc;
+        cs = vislab.lib.center_surround(a, swid, 4);
+        nc = numel(cs); cs4v(n_cs4+1:n_cs4+nc) = cs(:); n_cs4 = n_cs4 + nc;
     end
 
     s.lms  = lms(1:n_lms, :);

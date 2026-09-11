@@ -22,40 +22,53 @@ function coeff = s1_learn_color_transform(cfg, autosave)
 %   re-running this stage overwrites the shared cps_lms2abr_otf.mat that all lab
 %   projects consume. Diagnostic histograms from the original are omitted.
 %
+%   Inputs
+%     cfg      - config struct (see config.m).
+%     autosave - see above; default asks interactively.
+%
 %   Output / side effect
 %     coeff - 3x3 LMS->ABR rotation matrix; also saved to vislab-common/data as
 %             cps_lms2abr[_otf].mat (var `coeff`), shared across the lab.
+%
+%   See also LIST_NATURAL_IMAGES, SAMPLE_COLOR_PIXELS, S23_LEARN_PRIORS_AND_PAIRS
 
     maxval = cfg.natural.max_val;
 
     files = list_natural_images(cfg);
-    nsmp = ceil(cfg.natural.target_isolated_patches / numel(files));
+    n_samples = ceil(cfg.natural.target_isolated_patches / numel(files));
 
     % One independent image per iteration -> parfor (runs serially without the
     % Parallel Computing Toolbox). Each iteration returns its pixels into a cell.
     pix_c = cell(1, numel(files));
-    parfor f = 1:numel(files)
-        [~, fname, fext] = fileparts(files{f});
+    parfor img_idx = 1:numel(files)
+        [~, fname, fext] = fileparts(files{img_idx});
         fprintf('sampling %s\n', [fname, fext]);
-        img_lms = vislab.nat_stat_bayes.source_to_lms(files{f}, cfg, struct('prescale', 255/maxval));
-        pix_c{f} = sample_color_pixels(img_lms, nsmp, cfg);
+        img_lms = vislab.nat_stat_bayes.source_to_lms(files{img_idx}, cfg, ...
+            struct('prescale', 255/maxval));
+        pix_c{img_idx} = sample_color_pixels(img_lms, n_samples, cfg);
     end
     lms_pixels = cat(1, pix_c{:});
-    n = size(lms_pixels, 1);
+    n_pixels = size(lms_pixels, 1);
 
     coeff = pca(lms_pixels);                          % columns = principal (ABR) axes
 
-    if cfg.optics.apply, xform_file = 'cps_lms2abr_otf.mat'; else, xform_file = 'cps_lms2abr.mat'; end
-    out_path = fullfile(cfg.paths.data_root, xform_file);   % lab-global transform lives in the shared store
+    if cfg.optics.apply
+        xform_file = 'cps_lms2abr_otf.mat';
+    else
+        xform_file = 'cps_lms2abr.mat';
+    end
+    out_path = fullfile(cfg.paths.data_root, xform_file);   % lab-global; lives in shared store
     if nargin < 2 || isempty(autosave)
-        reply = input(sprintf('s1: Save LMS->ABR rotation to disk and overwrite %s? (y/n): ', xform_file), 's');
+        reply = input(sprintf( ...
+            's1: Save LMS->ABR rotation to disk and overwrite %s? (y/n): ', xform_file), 's');
         do_save = strcmpi(reply, 'y');
     else
         do_save = autosave;
     end
     if do_save
         save(out_path, 'coeff');
-        fprintf('s1: saved LMS->ABR rotation to %s (%d pixels from %d images)\n', out_path, n, numel(files));
+        fprintf('s1: saved LMS->ABR rotation to %s (%d pixels from %d images)\n', ...
+            out_path, n_pixels, numel(files));
     else
         fprintf('s1: skipped saving LMS->ABR rotation.\n');
     end

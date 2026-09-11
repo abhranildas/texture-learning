@@ -22,13 +22,16 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
 %   and contrast-normalize the gray), so every pair reads a clean per-patch copy.
 %   (The original re-normalized the reference gray in place across pairs -- a
 %   stateful bug; avoided here, flagged for Geisler.)
+%
+%   See also MAKE_GTR_IMAGE, SEGMENTATION.PREP_GRID, SEGMENTATION.CONTENT_FEATURES,
+%   SEGMENTATION.CONTENT_DV_PAIR, SELF_SUP_DECISION, NEARFAR_SCORE_GRID
 
     [npx, npy] = size(map);              % grid rows x cols (npy = linear-index stride)
-    psz  = size(pimg, 1) / npx;
+    patch_size = size(pimg, 1) / npx;
     dcrit = cfg.gtr.dcrit;
-    b0   = cfg.gtr.power_suppress;
-    nh   = cfg.features.spot_dims;
-    ne   = cfg.features.edge_dv_dims;
+    power_suppress = cfg.gtr.power_suppress;
+    spot_dims = cfg.features.spot_dims;
+    edge_dims = cfg.features.edge_dv_dims;
 
     ncnt = 2 * (npx - 1) * (npy - 1);
     [rcn, rbn, rmn] = deal(zeros(1, ncnt));
@@ -39,11 +42,12 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
 
     % prep every patch once (extract + normalize + rotate; raw gray for the power DV,
     % contrast-normalized gray for the edge/border DVs)
-    [P, G, Gn] = segmentation.prep_grid(pimg, psz, cfg);
+    [patches, achrom, achrom_norm] = segmentation.prep_grid(pimg, patch_size, cfg);
 
     % featurize each patch once (power spectrum + spot/edge histograms); pair_cb below
-    % just combines them. Edge features use Gn (contrast-normalized), matching pair_cb.
-    CF = segmentation.content_features(P, G, Gn, psz, bin_bounds, n_bins, nh, ne, cfg);
+    % just combines them. Edge features use achrom_norm (contrast-normalized), matching pair_cb.
+    content_feats = segmentation.content_features(patches, achrom, achrom_norm, patch_size, ...
+        bin_bounds, n_bins, spot_dims, edge_dims, cfg);
 
     for i = 1:npx-1
         for j = 1:npy-1
@@ -77,8 +81,10 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
 
     % ---- nested helper: content + border DV for the pair at grid (ra,ca)-(rb2,cb) ----
     function [rc, rb] = pair_cb(ra, ca, rb2, cb, dir)
-        rc = segmentation.content_dv_pair(CF{ra, ca}, CF{rb2, cb}, psz, b0, dv.h, dv.e, dv.c, nh, ne);
-        border = vislab.nat_stat_bayes.dv_border(Gn{ra, ca}, Gn{rb2, cb}, psz, dir, cfg.dv.sd1, cfg.dv.nsd1, false);
+        rc = segmentation.content_dv_pair(content_feats{ra, ca}, content_feats{rb2, cb}, ...
+            patch_size, power_suppress, dv.h, dv.e, dv.c, spot_dims, edge_dims);
+        border = vislab.nat_stat_bayes.dv_border(achrom_norm{ra, ca}, achrom_norm{rb2, cb}, ...
+            patch_size, dir, cfg.dv.sd1, cfg.dv.nsd1, false);
         rb = dv.b(border(1:2)');
     end
 

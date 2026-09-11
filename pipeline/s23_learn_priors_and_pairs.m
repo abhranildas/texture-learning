@@ -19,18 +19,30 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
 %   image as the pairs -- one image load feeds both.
 %
 %   Run `setup` first; run stage 1 (LMS->ABR rotation) before. ecc = 1, 2, 4, 8.
+%
+%   Inputs
+%     cfg      - config struct (see config.m).
+%     ecc      - eccentricity downsample factor (1, 2, 4, 8).
+%     autosave - see above; default asks interactively.
+%
+%   See also LIST_NATURAL_IMAGES, SAMPLE_PRIOR_FEATURES, SAMPLE_NEARFAR_PAIRS,
+%   FINALIZE_PRIORS, PRIOR_FILENAME, S1_LEARN_COLOR_TRANSFORM, S4_OPTIMIZE_BINS
 
     n_bins = 16000;                      % prior CDF resolution
     maxval = cfg.natural.max_val;
-    psz    = cfg.patch.size / ecc;       % patch size at this eccentricity
+    patch_size = cfg.patch.size / ecc;   % patch size at this eccentricity
 
-    if cfg.optics.apply, xform_file = 'cps_lms2abr_otf.mat'; else, xform_file = 'cps_lms2abr.mat'; end
+    if cfg.optics.apply
+        xform_file = 'cps_lms2abr_otf.mat';
+    else
+        xform_file = 'cps_lms2abr.mat';
+    end
     s = load(fullfile(cfg.paths.data_root, xform_file), 'coeff');   % shared lab LMS->ABR transform
     coeff = s.coeff;
 
     files  = list_natural_images(cfg);
-    nprior = ceil(cfg.natural.target_isolated_patches   / numel(files));  % isolated patches / image
-    npair  = ceil(cfg.natural.target_nearfar_references / numel(files));  % near/far references / image
+    n_prior = ceil(cfg.natural.target_isolated_patches   / numel(files));  % isolated patches/image
+    n_pair  = ceil(cfg.natural.target_nearfar_references / numel(files));   % near/far refs / image
 
     % One independent image per iteration -> parfor (runs serially without the
     % Parallel Computing Toolbox). Each image is loaded ONCE and feeds both the
@@ -38,12 +50,13 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
     Sc      = cell(1, numel(files));
     ptchn_c = cell(1, numel(files));
     ptchf_c = cell(1, numel(files));
-    parfor f = 1:numel(files)
-        [~, fname, fext] = fileparts(files{f});
+    parfor img_idx = 1:numel(files)
+        [~, fname, fext] = fileparts(files{img_idx});
         fprintf('sampling %s\n', [fname, fext]);
-        img = vislab.nat_stat_bayes.source_to_lms(files{f}, cfg, struct('prescale', 255/maxval, 'ecc', ecc));
-        Sc{f} = sample_prior_features(img, nprior, psz, cfg, coeff);
-        [ptchn_c{f}, ptchf_c{f}] = sample_nearfar_pairs(img, npair, psz, cfg);
+        img = vislab.nat_stat_bayes.source_to_lms(files{img_idx}, cfg, ...
+            struct('prescale', 255/maxval, 'ecc', ecc));
+        Sc{img_idx} = sample_prior_features(img, n_prior, patch_size, cfg, coeff);
+        [ptchn_c{img_idx}, ptchf_c{img_idx}] = sample_nearfar_pairs(img, n_pair, patch_size, cfg);
     end
 
     P = finalize_priors([Sc{:}], n_bins, coeff);   % marginal CDFs (the natural priors)
@@ -63,10 +76,11 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
         do_save = autosave;
     end
     if do_save
-        save(prior_path, '-struct', 'P');                    % fields ea,Na,...,coeff (see finalize_priors)
-        save(pairs_path, 'ptchn', 'ptchf', 'pcnt');
-        fprintf('s23: saved priors to %s and %d near/far pairs (ecc %d) to %s\n', ...
-            prior_path, pcnt, ecc, pairs_path);
+        save(prior_path, '-struct', 'P');            % fields ea,Na,...,coeff (see finalize_priors)
+        color = cfg.features.color;    % saved so s4/s5 can catch a stale-mode reuse
+        save(pairs_path, 'ptchn', 'ptchf', 'pcnt', 'color');
+        fprintf('s23: saved priors to %s and %d near/far pairs (ecc %d, color=%d) to %s\n', ...
+            prior_path, pcnt, ecc, cfg.features.color, pairs_path);
     else
         fprintf('s23: skipped saving priors and patch pairs.\n');
     end

@@ -15,7 +15,8 @@ function out = s7_segment_gtr(cfg, method, itype, ecc, n_images)
 %
 %   method (which self-supervised decision variable sets gcopt/wmopt):
 %     'nc'  - content-based: shift the content DV (was ..._ncm; self_sup 'c_shft').
-%     'ncb' - border+content-based: trained bc DV, no shift (was ..._ncbm; 'bc_noshift').
+%     'ncb' - border+content-based: refit the whole bc bound on this image
+%             (self_sup 'bc'; true per-image NCB, as defined in the paper).
 %   itype:    texture dataset (default 3 = Brodatz).
 %   ecc:      eccentricity (default 1).
 %   n_images: number of GTR images to average over (default 120). Images are drawn
@@ -25,24 +26,42 @@ function out = s7_segment_gtr(cfg, method, itype, ecc, n_images)
 %   NOTE: the original hardcoded the neighbour distance dmin=64 px regardless of
 %   eccentricity; here it is the actual patch size (= 64/ecc), which matters only
 %   for ecc>1 (flagged for Geisler). pd=4 and eccb=1 preserved from the originals.
+%
+%   Inputs
+%     cfg      - config struct (see config.m).
+%     method   - 'nc' or 'ncb' (see above); default 'ncb'.
+%     itype    - texture dataset selector (see load_texture_images); default 3.
+%     ecc      - eccentricity downsample factor (1, 2, 4, 8); default 1.
+%     n_images - number of GTR images to average over; default 120.
+%
+%   Output
+%     out - struct: .nregs (n_images-trial raw correct-region counts), .nregs_ave,
+%           .nregs5_ave (fraction fully correct), .nregs_sd, .nregs5_sd (all
+%           nmc x ndgc, see mc_vec/dgc_vec below), .mc, .dgc (the swept grids),
+%           .method, .itype, .ecc, .n_images.
+%
+%   See also LOAD_DV_HANDLES, NEIGHBOR_FAR_RESPONSES, SELF_SUP_DECISION,
+%   NEARFAR_SCORE_GRID, MAKE_GTR_IMAGE, LOAD_TEXTURE_IMAGES,
+%   SEGMENTATION.GROUP_PATCHES, SEGMENTATION.COUNT_CORRECT_REGIONS, S6_SELFSUP_DISCRIMINATION
 
     if nargin < 2 || isempty(method),   method = 'ncb'; end
     if nargin < 3 || isempty(itype),    itype = 3; end
     if nargin < 4 || isempty(ecc),      ecc = 1; end
     if nargin < 5 || isempty(n_images), n_images = 120; end
     mustBeMember(method, {'nc', 'ncb'});
-    ss_method = struct('nc', 'c_shft', 'ncb', 'bc_noshift').(method);   % self_sup_decision token
+    ss_method = struct('nc', 'c_shft', 'ncb', 'bc').(method);   % self_sup_decision token
 
     eccb = 1;                                   % bin-bounds eccentricity (see note)
     cfg.optics.pupil_diameter = 4;              % pupil for the OTF (both originals)
     szp    = cfg.gtr.szp;
-    psz    = cfg.patch.size / ecc;              % patch size in pixels = neighbour distance
+    patch_size = cfg.patch.size / ecc;          % patch size in pixels = neighbour distance
     ntexr  = cfg.gtr.n_regions;
 
-    cstat        = zeros(1,20); cstat([1 5 9 10 13 14]) = 5;   % spot [1 13 14] + edge DV [5 9 10]
+    cstat        = zeros(1,20); cstat(cfg.features.dv_dims) = 5;   % spot + edge DV dims
 
-    % artifacts: bin bounds + trained DV handles (bc bound needed; LMS->ABR auto-loaded by apply_color_rotation)
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, eccb, double(cfg.optics.apply));
+    % artifacts: bin bounds + trained DV handles (bc bound needed; LMS->ABR auto-loaded)
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds( ...
+        cstat, eccb, double(cfg.optics.apply));
     dv = load_dv_handles(cfg, ecc, true);
 
     % texture sheets
@@ -58,7 +77,7 @@ function out = s7_segment_gtr(cfg, method, itype, ecc, n_images)
 
     nregs = zeros(nmc, ndgc, n_images);          % correct-region count per (mc, dgc, image)
 
-    for imgnum = 1:n_images
+    for img_idx = 1:n_images
         % --- build one GTR image (rng order: textures -> masks -> far sampling). No
         %     fixed seed, so the images differ every run (see rng('shuffle') in run_demo). ---
         texs = gtr.sample_texture_ids(nimg, ntexr, 1);
@@ -67,7 +86,7 @@ function out = s7_segment_gtr(cfg, method, itype, ecc, n_images)
         [pimg, px, py] = make_gtr_image(cfg, imgr, imgg, imgb, texs(1,:), map);
 
         % --- content similarity + mutual similarity ---
-        phiall = segmentation.content_similarity_matrix(pimg, psz, px, py, ...
+        phiall = segmentation.content_similarity_matrix(pimg, patch_size, px, py, ...
             bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
         rho = segmentation.mutual_similarity(phiall);
 
@@ -81,20 +100,21 @@ function out = s7_segment_gtr(cfg, method, itype, ecc, n_images)
         wmopt = wm_vec(col_at(J));
 
         % --- 2. neighbour similarity + combined mu = phi + wmopt*rho ---
-        [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, psz, px, py, ...
-            psz, bin_bounds, n_bins, dv, cfg);
+        [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, patch_size, px, py, ...
+            patch_size, bin_bounds, n_bins, dv, cfg);
         mu = (phi + wmopt * rho) .* (phi ~= 0);  % combine only on neighbouring pairs
 
         % --- 3. group + score, swept over dgc x mc (x cc) ---
-        for l = 1:ndgc
-            for k = 1:nmc
+        for dgc_idx = 1:ndgc
+            for mc_idx = 1:nmc
                 nreg = 0;
-                for c = 1:ncc
+                for cc_idx = 1:ncc
                     [~, ngrps, groups2d] = segmentation.group_patches(mu, dst, ...
-                        gcopt + dgc_vec(l), cc_vec(c), psz, px, py, phiall, mc_vec(k));
+                        gcopt + dgc_vec(dgc_idx), cc_vec(cc_idx), patch_size, px, py, ...
+                        phiall, mc_vec(mc_idx));
                     nreg = segmentation.count_correct_regions(map, ntexr, groups2d, ngrps);
                 end
-                nregs(k, l, imgnum) = nreg;      % last cc (single cc in the originals)
+                nregs(mc_idx, dgc_idx, img_idx) = nreg;      % last cc (single cc in the originals)
             end
         end
     end
