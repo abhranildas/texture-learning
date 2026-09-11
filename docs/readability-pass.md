@@ -270,7 +270,7 @@ Order (check off each step as it's completed):
       Note the duplicated `local_show_pair` (`plot_stage3.m:43`, `plot_stage6_pairs.m:74`) —
       clean both copies **identically**, or you manufacture a divergence that a later merge has
       to untangle.
-- [ ] **4. `twin-net/` (11 files, 847 lines).** Do the camelCase→snake_case identifier
+- [x] **4. `twin-net/` (11 files, 847 lines).** Do the camelCase→snake_case identifier
       unification as one decision applied across all 11 at once, not file by file.
 - [ ] **5. Root: `config.m`, `setup.m`, `run_demo.m` (547 lines).** Last, because `config.m`'s
       field names are the zone-2 vocabulary every earlier tranche has been citing.
@@ -452,3 +452,31 @@ Bug found, **not fixed**:
   `struct('nc', 'c_shft', 'ncb', 'bc').(method)`, which only has fields `nc` and `ncb` -- passing
   the documented `'bc'` value would error. Currently unreachable (`run_demo.m` only ever passes
   `'ncb'`), but the header disagrees with the code it describes.
+
+### Step 4 — `twin-net/` (11 files)
+
+CamelCase -> snake_case identifier unification applied as one consistent decision across all 11
+files, verified against `git show HEAD:<file>` with `check_tier_a` (no pre-existing WIP
+contamination in this tranche, unlike `demo/` -- `git status` showed only the unrelated
+`net_plan.md` dirty beforehand). Representative renames: `psz`->`patch_size` (reusing the
+tranche-1/2 name), `miniBatchSize`->`mini_batch_size`, `pairLabels`->`pair_labels`,
+`learningRate`->`learning_rate`, `gradDecay(Sq)`->`grad_decay(_sq)`, `numIterations`->
+`n_iterations`, `XVal1/2`/`YVal`/etc. snake-cased on the compound suffix only (kept the `X`/`Y`
+math-convention capitals). File names and top-level function names are untouched (Tier C) --
+`forwardTwin.m`, `predictTwin.m`, `poolStats.m`, `modelLoss.m`, `getTwinBatchPairs.m`,
+`getTwinBatch_nat_live.m` keep their camelCase spelling since it must match the filename.
+Deep Learning Toolbox name-value keys (`WeightsInitializer`, `DilationFactor`, etc.) are fixed API
+and untouched.
+
+**`fcParams` deliberately left untouched everywhere** (camelCase, including its own struct field
+names `FcWeights`/`FcBias`): it's a zone-3 frozen name, saved into `data/models/net_on_nat.mat` at
+`train_net.m:389` (`save(netfile,'net','fcParams')`). Checked every `save`/`load` call in the
+tranche; only frozen names (`near`, `far`, `same`, `diff`, `same_brod`, `diff_brod`, `net`,
+`fcParams`) ever appear as string literals, and none were renamed. `A_pool` was checked and is
+*not* a save/load key anywhere in this tranche, so it isn't zone-3 frozen, but it was left as-is
+anyway (already acceptable snake_case-with-domain-capital, parallel to `Na`/`ea`) since renaming
+it wasn't needed for the camelCase->snake_case goal.
+
+Zero lines over 100 characters after reflow -- no documented exceptions needed this time. No new
+bugs found (the tranche's one pre-existing `NOPTS` lint hit in `train_net.m`, a missing semicolon
+on a console-echoing line, is unchanged from the original; adding the `;` would be Tier B).

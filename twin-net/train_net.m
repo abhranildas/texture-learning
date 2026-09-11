@@ -1,9 +1,14 @@
-%% train_net.m
-% Train the twin (Siamese) network on natural-image near/far patch pairs, sampled
-% fresh on the fly (never repeating). Test/validate on a balanced same/different
-% texture-pair set combining several texture databases (cross-domain transfer),
-% loaded from a .mat produced by texture_same_diff_patches_net.
-% Run from the repo root with twin-net/ on the MATLAB path (run setup first).
+%% TRAIN_NET  Train the twin (Siamese) network on natural-image near/far patch pairs.
+%
+%   Patches are sampled fresh on the fly (never repeating). Tests/validates on a
+%   balanced same/different texture-pair set combining several texture databases
+%   (cross-domain transfer), loaded from a .mat produced by
+%   texture_same_diff_patches_net. Saves the trained net to
+%   data/models/net_on_nat.mat (fields net, fcParams -- both frozen names).
+%   Run from the repo root with twin-net/ on the MATLAB path (run setup first).
+%
+%   See also LOAD_NAT_A_POOL, GETTWINBATCH_NAT_LIVE, GETTWINBATCHPAIRS, MODELLOSS,
+%   PREDICTTWIN, TEXTURE_SAME_DIFF_PATCHES_NET
 
 clearvars
 clc
@@ -19,7 +24,7 @@ gpu = gpuDevice([]);
 % come from config.m -- the single source also used by the Bayesian pipeline, so they
 % cannot diverge. Ingestion runs through the shared vislab.nat_stat_bayes.source_to_lms.
 cfg = config;
-psz = cfg.patch.size;        % patch size (matches the [64 64 1] network input)
+patch_size = cfg.patch.size; % matches the [64 64 1] network input
 same_max_dist = 1;           % max neighbor offset (in patches) for the near pair (network sampling)
 
 % expensive one-time step: process every source image into its A channel
@@ -29,9 +34,9 @@ A_pool = load_nat_A_pool(cfg, down_level);
 % come from images the network never trains on.
 n_img = numel(A_pool);
 perm = randperm(n_img);
-nTrainImg = round(0.9 * n_img);
-A_pool_train = A_pool(perm(1:nTrainImg));
-A_pool_val   = A_pool(perm(nTrainImg+1:end));
+n_train_img = round(0.9 * n_img);
+A_pool_train = A_pool(perm(1:n_train_img));
+A_pool_val   = A_pool(perm(n_train_img+1:end));
 % A_pool stays in CPU RAM; only the small per-batch arrays go to the GPU.
 
 %% Load the texture test data (same/different pairs; Bayesian-mirrored ingestion)
@@ -40,16 +45,17 @@ A_pool_val   = A_pool(perm(nTrainImg+1:end));
 %                            balanced), "different" pairs may cross databases
 %   same_brod, diff_brod  -- Brodatz only
 % label 1 = same texture, 0 = different.
-if down_level>1
-    bpfile = fullfile(cfg.paths.stimuli, 'textures', ['patch_pairs_dsmpl_' num2str(down_level) '.mat']);
+if down_level > 1
+    bpfile = fullfile(cfg.paths.stimuli, 'textures', ...
+        ['patch_pairs_dsmpl_' num2str(down_level) '.mat']);
 else
     bpfile = fullfile(cfg.paths.stimuli, 'textures', 'patch_pairs.mat');
 end
-load(bpfile,'same','diff','same_brod','diff_brod');
+load(bpfile, 'same', 'diff', 'same_brod', 'diff_brod');
 
 %% Define Network Architecture
-% Shared subnetwork. Four selectable architectures; all output an H x W x nChan map
-% that poolStats reduces to a 2*nChan-vector (nChan channel means + nChan stds) per patch.
+% Shared subnetwork. Four selectable architectures; all output an H x W x n_chan map
+% that poolStats reduces to a 2*n_chan-vector (n_chan channel means + n_chan stds) per patch.
 arch = "pyramid";   % "baseline" | "dilated" | "multiscale" | "pyramid"
 
 switch arch
@@ -57,18 +63,26 @@ switch arch
         % Original: 4x (conv -> relu -> maxpool), valid padding -> 4x4x32 final map.
         layers = [
             imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:))) % 64x64
-            convolution2dLayer(5,8,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 60x60 x8
+            % 60x60 x8
+            convolution2dLayer(5,8,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer
             maxPooling2dLayer(2,Stride=2) % 30x30
-            convolution2dLayer(5,16,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 26x26 x16
+            % 26x26 x16
+            convolution2dLayer(5,16,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer
             maxPooling2dLayer(2,Stride=2) % 13x13
-            convolution2dLayer(4,16,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 10x10 x16
+            % 10x10 x16
+            convolution2dLayer(4,16,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer
             maxPooling2dLayer(2,Stride=2) % 5x5
-            convolution2dLayer(2,32,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 4x4 x32
+            % 4x4 x32
+            convolution2dLayer(2,32,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer];
-        nChan = 32;
+        n_chan = 32;
 
     case "dilated"
         % Dilated variant: grow the receptive field with DilationFactor instead of
@@ -77,17 +91,25 @@ switch arch
         % the baseline's ~40) while leaving a 14x14x32 final map -- ~196 spatial samples for
         % poolStats vs the baseline's 16. Effective kernel = dilation*(k-1)+1.
         layers = [
-            imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:)))                                          % 64x64
-            convolution2dLayer(5,8, WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal")               % 60x60 x8
+            imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:))) % 64x64
+            % 60x60 x8
+            convolution2dLayer(5,8,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer
-            maxPooling2dLayer(2,Stride=2)                                                                             % 30x30
-            convolution2dLayer(5,16,DilationFactor=2,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 22x22 x16 (keff 9)
+            maxPooling2dLayer(2,Stride=2) % 30x30
+            % 22x22 x16 (keff 9)
+            convolution2dLayer(5,16,DilationFactor=2,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer
-            convolution2dLayer(4,16,DilationFactor=2,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 16x16 x16 (keff 7)
+            % 16x16 x16 (keff 7)
+            convolution2dLayer(4,16,DilationFactor=2,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer
-            convolution2dLayer(2,32,DilationFactor=2,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal") % 14x14 x32 (keff 3)
+            % 14x14 x32 (keff 3)
+            convolution2dLayer(2,32,DilationFactor=2,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal")
             reluLayer];
-        nChan = 32;
+        n_chan = 32;
 
     case "multiscale"
         % V1-like parallel multi-scale bank: a first-layer bank of 3x3 convs at
@@ -99,30 +121,37 @@ switch arch
         dils = [1 2 4];
         lgraph = layerGraph();
         lgraph = addLayers(lgraph, ...
-            imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:)),Name="in"));           % 64x64
+            imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:)),Name="in"));   % 64x64
         for i = 1:numel(dils)
+            % 64x64 x8
             branch = [
                 convolution2dLayer(3,8,DilationFactor=dils(i),Padding="same", ...
-                    WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="b"+i+"_conv") % 64x64 x8
+                    WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal", ...
+                    Name="b"+i+"_conv")
                 reluLayer(Name="b"+i+"_relu")];
             lgraph = addLayers(lgraph, branch);
             lgraph = connectLayers(lgraph, "in", "b"+i+"_conv");
         end
-        lgraph = addLayers(lgraph, depthConcatenationLayer(numel(dils),Name="cat"));                % 64x64 x24
+        lgraph = addLayers(lgraph, ...
+            depthConcatenationLayer(numel(dils),Name="cat"));  % 64x64 x24
         for i = 1:numel(dils)
             lgraph = connectLayers(lgraph, "b"+i+"_relu", "cat/in"+i);
         end
         tail = [
-            maxPooling2dLayer(2,Stride=2,Name="pool1")                                                              % 32x32
-            convolution2dLayer(5,16,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="t_conv1") % 28x28 x16
+            maxPooling2dLayer(2,Stride=2,Name="pool1") % 32x32
+            % 28x28 x16
+            convolution2dLayer(5,16,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal",Name="t_conv1")
             reluLayer(Name="t_relu1")
-            maxPooling2dLayer(2,Stride=2,Name="pool2")                                                              % 14x14
-            convolution2dLayer(3,32,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="t_conv2") % 12x12 x32
+            maxPooling2dLayer(2,Stride=2,Name="pool2") % 14x14
+            % 12x12 x32
+            convolution2dLayer(3,32,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal",Name="t_conv2")
             reluLayer(Name="t_relu2")];
         lgraph = addLayers(lgraph, tail);
         lgraph = connectLayers(lgraph, "cat", "pool1");
         layers = lgraph;   % dlnetwork() accepts a layerGraph as well as a plain layer array
-        nChan = 32;
+        n_chan = 32;
 
     case "pyramid"
         % Lean Gaussian-pyramid front end: three average-pooled scales (1/2/4), a
@@ -137,54 +166,62 @@ switch arch
             imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:)),Name="in"));    % 64x64
         % scale 1 (full resolution)
         lgraph = addLayers(lgraph, [
-            convolution2dLayer(5,8,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="p0_conv") % 60x60 x8
+            % 60x60 x8
+            convolution2dLayer(5,8,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal",Name="p0_conv")
             reluLayer(Name="p0_relu")
-            resize2dLayer(OutputSize=[cs cs],Method="bilinear",Name="p0_rs")]);              % 12x12 x8
+            resize2dLayer(OutputSize=[cs cs],Method="bilinear",Name="p0_rs")]);   % 12x12 x8
         lgraph = connectLayers(lgraph, "in", "p0_conv");
         % scale 1/2
         lgraph = addLayers(lgraph, [
-            averagePooling2dLayer(2,Stride=2,Name="p1_pool")                                 % 32x32
-            convolution2dLayer(5,8,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="p1_conv") % 28x28 x8
+            averagePooling2dLayer(2,Stride=2,Name="p1_pool") % 32x32
+            % 28x28 x8
+            convolution2dLayer(5,8,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal",Name="p1_conv")
             reluLayer(Name="p1_relu")
-            resize2dLayer(OutputSize=[cs cs],Method="bilinear",Name="p1_rs")]);              % 12x12 x8
+            resize2dLayer(OutputSize=[cs cs],Method="bilinear",Name="p1_rs")]);   % 12x12 x8
         lgraph = connectLayers(lgraph, "in", "p1_pool");
         % scale 1/4 (already 12x12 after the conv, no resize needed)
         lgraph = addLayers(lgraph, [
-            averagePooling2dLayer(4,Stride=4,Name="p2_pool")                                 % 16x16
-            convolution2dLayer(5,8,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="p2_conv") % 12x12 x8
+            averagePooling2dLayer(4,Stride=4,Name="p2_pool") % 16x16
+            % 12x12 x8
+            convolution2dLayer(5,8,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal",Name="p2_conv")
             reluLayer(Name="p2_relu")]);
         lgraph = connectLayers(lgraph, "in", "p2_pool");
         % merge the three scales and reduce to a 32-channel map
-        lgraph = addLayers(lgraph, depthConcatenationLayer(3,Name="cat"));                   % 12x12 x24
+        lgraph = addLayers(lgraph, depthConcatenationLayer(3,Name="cat"));   % 12x12 x24
         lgraph = connectLayers(lgraph, "p0_rs",   "cat/in1");
         lgraph = connectLayers(lgraph, "p1_rs",   "cat/in2");
         lgraph = connectLayers(lgraph, "p2_relu", "cat/in3");
         lgraph = addLayers(lgraph, [
-            convolution2dLayer(3,32,WeightsInitializer="narrow-normal",BiasInitializer="narrow-normal",Name="t_conv") % 10x10 x32
+            % 10x10 x32
+            convolution2dLayer(3,32,WeightsInitializer="narrow-normal", ...
+                BiasInitializer="narrow-normal",Name="t_conv")
             reluLayer(Name="t_relu")]);
         lgraph = connectLayers(lgraph, "cat", "t_conv");
         layers = lgraph;
-        nChan = 32;
+        n_chan = 32;
 end
 
 net = dlnetwork(layers);
 
-% merge with fully connected layer: poolStats emits 2*nChan (channel means + stds).
-fcWeights = dlarray(0.01*single(randn(1,2*nChan)));
-fcBias = dlarray(0.01*single(randn(1,1)));
-fcParams = struct("FcWeights",fcWeights,"FcBias",fcBias);
+% merge with fully connected layer: poolStats emits 2*n_chan (channel means + stds).
+fc_weights = dlarray(0.01*single(randn(1,2*n_chan)));
+fc_bias = dlarray(0.01*single(randn(1,1)));
+fcParams = struct("FcWeights",fc_weights,"FcBias",fc_bias);
 
 %% train network
-numIterations = 1e4;
-miniBatchSize = 1.8e4;
-learningRate = 1e-2;
-gradDecay = 0.9;
-gradDecaySq = 0.99;
-executionEnvironment = "auto";
-trailingAvgSubnet = [];
-trailingAvgSqSubnet = [];
-trailingAvgParams = [];
-trailingAvgSqParams = [];
+n_iterations = 1e4;
+mini_batch_size = 1.8e4;
+learning_rate = 1e-2;
+grad_decay = 0.9;
+grad_decay_sq = 0.99;
+execution_environment = "auto";
+trailing_avg_subnet = [];
+trailing_avg_sq_subnet = [];
+trailing_avg_params = [];
+trailing_avg_sq_params = [];
 % Monitor figure: accuracy curves on top, a montage of the first conv layer's
 % learned kernels underneath (both refreshed together at each test iteration).
 monitor_fig = figure('Name', 'Training Progress');
@@ -196,51 +233,58 @@ xlabel(ax, 'Iteration');
 ylabel(ax, 'Accuracy');
 
 % Light blue, Mid blue, Orange, Green
-lineTrain = animatedline(ax, 'DisplayName', 'training (nat)', 'Color', [0.3010 0.7450 0.9330], 'LineWidth', 1.5);
-lineNatVal = animatedline(ax, 'DisplayName', 'test (nat)', 'Color', [0 0.4470 0.7410], 'LineWidth', 1.5);
-lineTexVal = animatedline(ax, 'DisplayName', 'test (all textures)', 'Color', [1 0.6 0.6], 'LineWidth', 1.5);
-lineBrodVal = animatedline(ax, 'DisplayName', 'test (Brodatz)', 'Color', [0.8 0.1 0.1], 'LineWidth', 1.5);
+line_train = animatedline(ax, 'DisplayName', 'training (nat)', ...
+    'Color', [0.3010 0.7450 0.9330], 'LineWidth', 1.5);
+line_nat_val = animatedline(ax, 'DisplayName', 'test (nat)', ...
+    'Color', [0 0.4470 0.7410], 'LineWidth', 1.5);
+line_tex_val = animatedline(ax, 'DisplayName', 'test (all textures)', ...
+    'Color', [1 0.6 0.6], 'LineWidth', 1.5);
+line_brod_val = animatedline(ax, 'DisplayName', 'test (Brodatz)', ...
+    'Color', [0.8 0.1 0.1], 'LineWidth', 1.5);
 legend(ax, 'show', 'Location', 'southeast');
 
 % Second tile: first-layer kernel montage (drawn in the monitor block below).
-axKernels = nexttile(monitor_tl);
-title(axKernels, 'conv1 filters');
-axis(axKernels, 'image', 'off');
-colormap(axKernels, gray);
+ax_kernels = nexttile(monitor_tl);
+title(ax_kernels, 'conv1 filters');
+axis(ax_kernels, 'image', 'off');
+colormap(ax_kernels, gray);
 
 % OPTIMIZATION: Pre-load fixed texture validation batches to the GPU (all textures +
 % Brodatz-only), each reused every check.
-[XVal1,XVal2,valLabels] = getTwinBatchPairs(same,diff,miniBatchSize);
-XVal1 = dlarray(single(gpuArray(XVal1)),"SSCB");
-XVal2 = dlarray(single(gpuArray(XVal2)),"SSCB");
-valLabels = gpuArray(valLabels);
+[X_val1, X_val2, val_labels] = getTwinBatchPairs(same, diff, mini_batch_size);
+X_val1 = dlarray(single(gpuArray(X_val1)),"SSCB");
+X_val2 = dlarray(single(gpuArray(X_val2)),"SSCB");
+val_labels = gpuArray(val_labels);
 
-[XValB1,XValB2,valLabelsB] = getTwinBatchPairs(same_brod,diff_brod,miniBatchSize);
-XValB1 = dlarray(single(gpuArray(XValB1)),"SSCB");
-XValB2 = dlarray(single(gpuArray(XValB2)),"SSCB");
-valLabelsB = gpuArray(valLabelsB);
+[X_val_brod1, X_val_brod2, val_labels_brod] = ...
+    getTwinBatchPairs(same_brod, diff_brod, mini_batch_size);
+X_val_brod1 = dlarray(single(gpuArray(X_val_brod1)),"SSCB");
+X_val_brod2 = dlarray(single(gpuArray(X_val_brod2)),"SSCB");
+val_labels_brod = gpuArray(val_labels_brod);
 
 % The nat validation batch is drawn fresh from the held-out images at each check
-% (inside the loop), not fixed here, so the NatVal curve is an average over many
-% held-out pairs rather than one frozen sample.
+% (inside the loop), not fixed here, so the line_nat_val curve is an average over
+% many held-out pairs rather than one frozen sample.
 
 start = tic;
 iteration = 0;
 
 % Loop over mini-batches.
-while iteration < numIterations && isvalid(monitor_fig)
+while iteration < n_iterations && isvalid(monitor_fig)
     iteration = iteration + 1;
 
     % Sample a fresh, never-repeating mini-batch of natural-image near/far pairs
-    [X1,X2,pairLabels] = getTwinBatch_nat_live(A_pool_train,miniBatchSize,psz,same_max_dist);
+    [X1, X2, pair_labels] = ...
+        getTwinBatch_nat_live(A_pool_train, mini_batch_size, patch_size, same_max_dist);
 
     % Patches are cut on the CPU; move the finished batch to the GPU.
     X1 = dlarray(single(gpuArray(X1)),"SSCB");
     X2 = dlarray(single(gpuArray(X2)),"SSCB");
-    pairLabels = gpuArray(pairLabels);
+    pair_labels = gpuArray(pair_labels);
 
     % Evaluate the model loss on training images
-    [training_loss,gradientsSubnet,gradientsParams] = dlfeval(@modelLoss,net,fcParams,X1,X2,pairLabels);
+    [training_loss, gradients_subnet, gradients_params] = ...
+        dlfeval(@modelLoss, net, fcParams, X1, X2, pair_labels);
 
     % Measure training accuracy on THIS batch BEFORE the weight update. With the
     % on-the-fly sampler no pair ever repeats, so this batch is fresh data the
@@ -248,50 +292,53 @@ while iteration < numIterations && isvalid(monitor_fig)
     % number that lines up with the validation curves. (Measuring after the update,
     % as before, was optimistically biased because the step just moved the weights
     % toward these exact examples.)
-    Y = predictTwin(net,fcParams,X1,X2);
+    Y = predictTwin(net, fcParams, X1, X2);
 
     % OPTIMIZATION: compute accuracy on the GPU, only gather the final scalar
     Y = round(extractdata(Y));
-    training_acc = gather(sum(Y == pairLabels)/miniBatchSize);
+    training_acc = gather(sum(Y == pair_labels)/mini_batch_size);
 
     % Update training line
-    addpoints(lineTrain, iteration, training_acc);
+    addpoints(line_train, iteration, training_acc);
 
     % Update the twin subnetwork parameters.
-    [net,trailingAvgSubnet,trailingAvgSqSubnet] = adamupdate(net,gradientsSubnet, ...
-        trailingAvgSubnet,trailingAvgSqSubnet,iteration,learningRate,gradDecay,gradDecaySq);
+    [net,trailing_avg_subnet,trailing_avg_sq_subnet] = adamupdate(net,gradients_subnet, ...
+        trailing_avg_subnet,trailing_avg_sq_subnet,iteration,learning_rate,grad_decay, ...
+        grad_decay_sq);
 
     % Update the fullyconnect parameters.
-    [fcParams,trailingAvgParams,trailingAvgSqParams] = adamupdate(fcParams,gradientsParams, ...
-        trailingAvgParams,trailingAvgSqParams,iteration,learningRate,gradDecay,gradDecaySq);
+    [fcParams,trailing_avg_params,trailing_avg_sq_params] = ...
+        adamupdate(fcParams,gradients_params,trailing_avg_params,trailing_avg_sq_params, ...
+        iteration,learning_rate,grad_decay,grad_decay_sq);
 
     if mod(iteration, 50) == 0 || iteration == 1
         % Evaluate predictions on the all-textures test set
-        YVal = predictTwin(net,fcParams,XVal1,XVal2);
-        YVal = round(extractdata(YVal));
-        tex_val_acc = gather(sum(YVal == valLabels)/miniBatchSize);
-        addpoints(lineTexVal, iteration, tex_val_acc);
+        Y_val = predictTwin(net, fcParams, X_val1, X_val2);
+        Y_val = round(extractdata(Y_val));
+        tex_val_acc = gather(sum(Y_val == val_labels)/mini_batch_size);
+        addpoints(line_tex_val, iteration, tex_val_acc);
 
         % Evaluate predictions on the Brodatz-only test set
-        YValB = predictTwin(net,fcParams,XValB1,XValB2);
-        YValB = round(extractdata(YValB));
-        brod_val_acc = gather(sum(YValB == valLabelsB)/miniBatchSize);
-        addpoints(lineBrodVal, iteration, brod_val_acc);
+        Y_val_brod = predictTwin(net, fcParams, X_val_brod1, X_val_brod2);
+        Y_val_brod = round(extractdata(Y_val_brod));
+        brod_val_acc = gather(sum(Y_val_brod == val_labels_brod)/mini_batch_size);
+        addpoints(line_brod_val, iteration, brod_val_acc);
 
         % Draw a fresh nat validation batch from the held-out images each check, so
-        % NatVal is a new random sample of held-out pairs every time rather than one
-        % fixed batch. Kept on held-out images (not the training images) so it still
-        % measures generalization to unseen scenes.
-        [XValNat1,XValNat2,valLabelsNat] = getTwinBatch_nat_live(A_pool_val,miniBatchSize,psz,same_max_dist);
-        XValNat1 = dlarray(single(gpuArray(XValNat1)),"SSCB");
-        XValNat2 = dlarray(single(gpuArray(XValNat2)),"SSCB");
-        valLabelsNat = gpuArray(valLabelsNat);
+        % line_nat_val is a new random sample of held-out pairs every time rather
+        % than one fixed batch. Kept on held-out images (not the training images) so
+        % it still measures generalization to unseen scenes.
+        [X_val_nat1, X_val_nat2, val_labels_nat] = ...
+            getTwinBatch_nat_live(A_pool_val, mini_batch_size, patch_size, same_max_dist);
+        X_val_nat1 = dlarray(single(gpuArray(X_val_nat1)),"SSCB");
+        X_val_nat2 = dlarray(single(gpuArray(X_val_nat2)),"SSCB");
+        val_labels_nat = gpuArray(val_labels_nat);
 
         % Evaluate natural image validation accuracy
-        YValNat = predictTwin(net,fcParams,XValNat1,XValNat2);
-        YValNat = round(extractdata(YValNat));
-        nat_val_acc = gather(sum(YValNat == valLabelsNat)/miniBatchSize);
-        addpoints(lineNatVal, iteration, nat_val_acc);
+        Y_val_nat = predictTwin(net, fcParams, X_val_nat1, X_val_nat2);
+        Y_val_nat = round(extractdata(Y_val_nat));
+        nat_val_acc = gather(sum(Y_val_nat == val_labels_nat)/mini_batch_size);
+        addpoints(line_nat_val, iteration, nat_val_acc);
 
         % Refresh the first-layer kernel montage. conv1 = 8 kernels of 5x5x1; each is
         % normalized to [0,1] on its own (so faint filters still show structure) and
@@ -301,19 +348,19 @@ while iteration < numIterations && isvalid(monitor_fig)
         w1 = gather(extractdata(lrn.Value{find(lrn.Parameter == "Weights", 1)})); % [kh kw 1 nk]
         w1 = squeeze(w1(:,:,1,:));                        % [kh kw nk]
         [kh, kw, nk] = size(w1);
-        nCols = ceil(sqrt(2*nk)); nRows = ceil(nk/nCols); % wide-ish grid
+        n_cols = ceil(sqrt(2*nk)); n_rows = ceil(nk/n_cols); % wide-ish grid
         pad = 1;
-        mosaic = 0.5 * ones(nRows*(kh+pad)-pad, nCols*(kw+pad)-pad); % mid-grey borders
+        mosaic = 0.5 * ones(n_rows*(kh+pad)-pad, n_cols*(kw+pad)-pad); % mid-grey borders
         for kk = 1:nk
-            r = floor((kk-1)/nCols); c = mod(kk-1, nCols);
+            r = floor((kk-1)/n_cols); c = mod(kk-1, n_cols);
             k = w1(:,:,kk);
             k = (k - min(k(:))) / (max(k(:)) - min(k(:)) + eps); % per-kernel [0,1]
             mosaic(r*(kh+pad)+(1:kh), c*(kw+pad)+(1:kw)) = k;
         end
-        imagesc(axKernels, mosaic, [0 1]);
-        colormap(axKernels, gray);
-        axis(axKernels, 'image', 'off');
-        title(axKernels, sprintf('conv1 filters (%d\\times %d\\times%d)', nk, kh, kw));
+        imagesc(ax_kernels, mosaic, [0 1]);
+        colormap(ax_kernels, gray);
+        axis(ax_kernels, 'image', 'off');
+        title(ax_kernels, sprintf('conv1 filters (%d\\times %d\\times%d)', nk, kh, kw));
 
         drawnow;
     else
@@ -323,10 +370,10 @@ end
 
 %% Save the training monitor plot (before the net-save below, so its errors can't block this)
 timestamp = char(datetime('now', 'Format', 'yyyy-MM-dd_HH-mm-ss'));
-savePath = fullfile(cfg.paths.repo_root, 'twin-net', ['training_monitor_' timestamp '.png']);
+save_path = fullfile(cfg.paths.repo_root, 'twin-net', ['training_monitor_' timestamp '.png']);
 if isvalid(monitor_fig)
-    exportgraphics(monitor_fig, savePath, 'Resolution', 300);
-    fprintf('Saved training monitor to %s\n', savePath);
+    exportgraphics(monitor_fig, save_path, 'Resolution', 300);
+    fprintf('Saved training monitor to %s\n', save_path);
 else
     warning('train_net:monitorSave', 'monitor_fig closed -- not saved.');
 end
@@ -343,47 +390,47 @@ save(netfile,'net','fcParams')
 
 %% Test accuracy over five random mini-batches of texture test pairs
 accuracy = zeros(1,5);
-accuracyBatchSize = 512;
+accuracy_batch_size = 512;
 
 for i = 1:5
-    [X1,X2,pairLabelsAcc] = getTwinBatchPairs(same,diff,accuracyBatchSize);
+    [X1, X2, pair_labels_acc] = getTwinBatchPairs(same, diff, accuracy_batch_size);
     X1 = dlarray(single(gpuArray(X1)),"SSCB");
     X2 = dlarray(single(gpuArray(X2)),"SSCB");
-    Y = predictTwin(net,fcParams,X1,X2);
+    Y = predictTwin(net, fcParams, X1, X2);
     Y = gather(extractdata(Y));
     Y = round(Y);
-    accuracy(i) = sum(Y == pairLabelsAcc)/accuracyBatchSize;
+    accuracy(i) = sum(Y == pair_labels_acc)/accuracy_batch_size;
 end
 
-averageAccuracy = mean(accuracy)*100
+average_accuracy = mean(accuracy)*100
 
 %% Display test pairs with predictions
-testBatchSize = 20;
+test_batch_size = 20;
 
-[XTest1,XTest2,pairLabelsTest] = getTwinBatchPairs(same,diff,testBatchSize);
+[X_test1, X_test2, pair_labels_test] = getTwinBatchPairs(same, diff, test_batch_size);
 
-XTest1 = dlarray(single(gpuArray(XTest1)),"SSCB");
-XTest2 = dlarray(single(gpuArray(XTest2)),"SSCB");
+X_test1 = dlarray(single(gpuArray(X_test1)),"SSCB");
+X_test2 = dlarray(single(gpuArray(X_test2)),"SSCB");
 
 % calculate predicted probability
-YScore = predictTwin(net,fcParams,XTest1,XTest2);
-YScore = gather(extractdata(YScore));
+Y_score = predictTwin(net, fcParams, X_test1, X_test2);
+Y_score = gather(extractdata(Y_score));
 
 % Convert the predictions to binary 0 or 1.
-YPred = round(YScore);
-XTest1 = extractdata(XTest1);
-XTest2 = extractdata(XTest2);
+Y_pred = round(Y_score);
+X_test1 = extractdata(X_test1);
+X_test2 = extractdata(X_test2);
 
 % Plot images with predicted label and predicted score.
 f = figure;
 tiledlayout(4,5);
 
-predLabels = categorical(YPred,[0 1],["diff" "same"]);
-targetLabels = categorical(pairLabelsTest,[0 1],["diff","same"]);
+pred_labels = categorical(Y_pred,[0 1],["diff" "same"]);
+target_labels = categorical(pair_labels_test,[0 1],["diff","same"]);
 
-for i = 1:numel(pairLabelsTest)
+for i = 1:numel(pair_labels_test)
     nexttile
-    imshow([XTest1(:,:,:,i) XTest2(:,:,:,i)],[]);
-    title(string(targetLabels(i)) + " / " + ...
-        string(predLabels(i)) + newline + YScore(i))
+    imshow([X_test1(:,:,:,i) X_test2(:,:,:,i)],[]);
+    title(string(target_labels(i)) + " / " + ...
+        string(pred_labels(i)) + newline + Y_score(i))
 end

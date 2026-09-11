@@ -23,6 +23,8 @@ function A_pool = load_nat_A_pool(cfg, down_level)
 %
 %   Output
 %     A_pool     - 1 x n_img cell array; A_pool{k} is a uint8 achromatic image.
+%
+%   See also GETTWINBATCH_NAT_LIVE, VISLAB.NAT_STAT_BAYES.SOURCE_TO_LMS
 
     if nargin < 2 || isempty(down_level), down_level = 1; end
 
