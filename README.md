@@ -47,8 +47,8 @@ cfg = config;    % paths + parameters; edit cfg.paths.data_root if vislab-common
 
 The `run_demo.m` script demonstrates the entire model lifecycle. By changing the `demo_type` variable at the top of the script, you can run it in two modes:
 
-- **`quick` mode**: Skips the expensive training phase (Stages 1-5) and uses the pre-trained models shipped in `data/models/`. It plots the learned parameters, and then evaluates the model (Stages 6-7) on a small set of Grown-Texture-Region (GTR) images. The evaluation takes a few minutes to run.
-- **`full` mode**: Re-trains the model from scratch (Stages 1-5) before evaluating. Before training starts, the script asks once whether to save (and overwrite) the shipped, pre-installed parameter files with the newly-learned ones; answering no aborts the run.
+- **`quick` mode**: Skips the expensive training phase (Stages 1-5) and uses the pre-trained models shipped in `data/models/`. It plots the learned parameters, and then evaluates the model (Stages 6-7) on a small set of Grown-Texture-Region (GTR) images. The evaluation takes a few minutes to run. It also asks whether to include colour (see Colour extension below) and runs whichever mode you ask for — falling back, with a notice, to whichever mode's file actually is shipped if that one is missing.
+- **`full` mode**: Re-trains the model from scratch (Stages 1-5) before evaluating. Before training starts, the script asks once whether to save (and overwrite) the shipped, pre-installed parameter files with the newly-learned ones; answering no aborts the run. It also asks whether to include colour in the trained model.
 
 ```matlab
 run_demo      % runs the demo according to the selected demo_type
@@ -65,7 +65,7 @@ texture-learning/
 ├── twin-net/                 twin/Siamese network comparison (learned; needs Deep Learning Toolbox)
 ├── data/models/              shipped trained artifacts (PCA, priors, AHEO bins, dbnd bounds, net_on_nat)
 ├── data/stimuli/             generated data (patch pairs, results) — git-ignored
-└── docs/                     papers
+└── docs/                     papers + design docs (e.g. colour extension: docs/color-extension-plan.md)
 ```
 
 Shared low-level code lives in `vislab` (not here), so it isn't duplicated across the lab's repos.
@@ -80,9 +80,39 @@ images and write artifacts to `data/models/`; stages 6–7 apply/evaluate it on 
 | 1 | `s1_learn_color_transform(cfg)` | `vislab-common/data/cps_lms2abr_otf.mat` — LMS→ABR colour rotation (lab-shared) |
 | 2+3 | `s23_learn_priors_and_pairs(cfg, ecc)` | `priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat` (per-ecc natural feature priors) + `patch_pairs_ecc<ecc>.mat` (near/far training pairs), in one pass over the images |
 | 4 | `s4_optimize_bins(cfg, dim, ecc)` | `AHEO<btype><dim><ecc>.mat` — adaptive histogram bins |
-| 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>.mat` — trained decision-variable bounds |
+| 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>.mat` (achromatic) or `decision_bounds_ecc_<ecc>_color.mat` (colour) — trained decision-variable bounds |
 | 6 | `s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)` | per-image self-supervised discrimination accuracy surfaces (runs on GTR images built from Brodatz/Fabric source textures — see Quick demo) |
 | 7 | `s7_segment_gtr(cfg, method, itype, ecc, n_images)` | GTR segmentation: correct-region counts over the merge x grouping-offset grid |
+
+Stages 4-5 (and everything downstream) key off `cfg.features.dv_dims`/`spot_dims`, which
+`config.m` derives from `cfg.features.color` — see Colour extension below.
+
+## Colour (chromatic) extension
+
+The **spot** decision variable (feature dims 1/13/14: A pixel, CS-small, CS-large) can optionally
+include **chromatic** signal from the B (blue-yellow) and R (red-green) pixel features (dims 2/3).
+A single switch, `cfg.features.color` — set via `config(true)`/`config(false)`, or interactively
+in `run_demo` — controls this:
+
+- **off** (achromatic-only, the published model): spot dims = `[1 13 14]`, exactly as before, at
+  no extra cost.
+- **on**: the spot DV is trained in two steps — an achromatic sub-bound over `[1 13 14]` and a
+  chromatic sub-bound over `[2 3]` — combined by a third bound into a single spot DV that feeds
+  the content DV exactly like the achromatic-only spot DV always did. Nothing downstream
+  (segmentation, stages 6-8) needs to know which mode trained it: `load_dv_handles` composes the
+  two-step spot DV into one function handle with the same signature either way.
+
+Turning colour on is the one thing that costs more: patch pairs are then stored as full 3-channel
+(LMS/ABR) patches instead of 1-channel achromatic patches, so `patch_pairs_ecc<ecc>.mat` is larger
+on disk and in memory. Everything else (priors, bins, bounds, segmentation) scales the same either
+way. Colour and achromatic models ship as separate `decision_bounds_ecc_<ecc>[_color].mat` files
+(`dbnd.h` means something different in each mode, so they cannot share a filename) — both are
+shipped in `data/models/` alongside the shared, mode-independent priors and bins files. `run_demo`
+asks whether to include colour in both modes: `full` trains whichever mode you choose from
+scratch; `quick` runs whichever mode's file is shipped, falling back (with a notice) to whichever
+one actually is if the requested one isn't.
+
+Full design rationale, the data-file layout, and implementation notes: `docs/color-extension-plan.md`.
 
 ## Twin network (learned comparison)
 
@@ -108,9 +138,9 @@ Here is a simple breakdown of the data files you'll encounter:
 
 - **`cps_lms2abr_otf.mat`**: The LMS→ABR color space transformation matrix. This file is **not** duplicated in this repository; it lives exclusively in the lab's shared `vislab-common/data/` folder so all projects use the exact same calibration.
 - **`priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat`**: The natural marginal probability distributions (priors) for the model's low-level image features, learned per eccentricity (ecc applies blur + downsampling, which changes the feature statistics).
-- **`patch_pairs_ecc<ecc>.mat`**: Large datasets of *near* (likely same texture) and *far* (likely different texture) patch pairs, extracted directly from unlabelled natural images to train the model.
+- **`patch_pairs_ecc<ecc>.mat`**: Large datasets of *near* (likely same texture) and *far* (likely different texture) patch pairs, extracted directly from unlabelled natural images to train the model. Stores 1-channel achromatic patches or 3-channel colour (LMS/ABR) patches depending on `cfg.features.color` (see Colour extension above); a `color` flag in the file records which, and the pipeline errors loudly if it doesn't match `cfg`.
 - **`AHEO<btype><dim><ecc>.mat`**: Adaptive histogram bin boundaries used for discretizing the feature responses.
-- **`decision_bounds_ecc_<ecc>.mat`**: The final trained quadratic decision boundaries for determining whether two patches belong to the same or different textures.
+- **`decision_bounds_ecc_<ecc>.mat`** (achromatic) / **`decision_bounds_ecc_<ecc>_color.mat`** (colour): The final trained quadratic decision boundaries for determining whether two patches belong to the same or different textures. The achromatic file stores one spot bound; the colour file additionally stores the achromatic/chromatic sub-bounds it combines (see Colour extension above).
 
 *(Note: `<ecc>` refers to the spatial eccentricity-related downsampling factor of the patches, typically 1, 2, 4, or 8).*
 
@@ -134,7 +164,9 @@ Decoder for the terse names in this codebase: code term ↔ paper symbol/notatio
 1 A pixel · 2 B pixel · 3 R pixel · 4 edge count · 5 edge magnitude · 6 edge orientation ·
 7 edge mag×ori · 8 bar count · 9 bar magnitude · 10 bar orientation · 11 bar mag×ori ·
 12 center-surround ratio (small) · 13 center-surround linear (small) · 14 center-surround linear (large).
-The pipeline uses spot dims **[1 13 14]** and edge dims **[5 9 10]** in the content DV.
+The pipeline always uses edge dims **[5 9 10]** in the content DV. Spot dims are **[1 13 14]**
+(achromatic-only, the published model) or **[1 13 14 2 3]** (colour) depending on
+`cfg.features.color` — see Colour extension above.
 
 ### Decision variables (paper log-likelihood ratios ln L → code)
 | Code (vislab `vislab.nat_stat_bayes.*`) | Was | Paper | Meaning |

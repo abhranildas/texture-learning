@@ -157,7 +157,10 @@ function ensure_addon_on_path(probe_function, folder_pattern, toolbox_name, url,
         end
     end
     if ~batchStartupOptionUsed                % don't pop a browser in headless (-batch) runs
-        try, web(url, '-browser'); catch, end
+        try
+            web(url, '-browser');
+        catch
+        end
     end
     warning('texture_learning:setup:missingToolbox', ...
         ['Required MATLAB toolbox "%s" not found (cannot find %s) and could not be ', ...

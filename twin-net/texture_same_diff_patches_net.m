@@ -37,14 +37,27 @@ n_same_brod = 5000; n_diff_brod = 5000;  % Brodatz-only pairs of each type
 % Bayesian load_texture_images), so gray/gamma/resize can't drift between the models.
 db_names = fieldnames(cfg.textures);
 
-% load a capped, random subset of each database as achromatic uint8 images
-all_tex  = {};                 % every loaded texture (balanced pool)
-brod_tex = {};                 % Brodatz subset (for the Brodatz-only set)
+% load a capped, random subset of each database as achromatic uint8 images. Sizing pass
+% first (dir/min/numel only, no RNG draws) so the loading pass below can preallocate
+% instead of growing all_tex/brod_tex one element at a time.
+db_files = cell(numel(db_names), 1);
+db_n_use = zeros(numel(db_names), 1);
 for d = 1:numel(db_names)
     name = db_names{d};
     p = cfg.textures.(name);
-    files = dir(fullfile(texdir, name, ['*.' p.ext]));
-    n_use = min(n_tex_per_db, numel(files));
+    db_files{d} = dir(fullfile(texdir, name, ['*.' p.ext]));
+    db_n_use(d) = min(n_tex_per_db, numel(db_files{d}));
+end
+all_tex  = cell(1, sum(db_n_use));            % every loaded texture (balanced pool)
+brod_idx = find(strcmp(db_names, 'brodatz'));
+if isempty(brod_idx), n_brod_total = 0; else, n_brod_total = db_n_use(brod_idx); end
+brod_tex = cell(1, n_brod_total);             % Brodatz subset (for the Brodatz-only set)
+n_all = 0; n_brod = 0;
+for d = 1:numel(db_names)
+    name = db_names{d};
+    p = cfg.textures.(name);
+    files = db_files{d};
+    n_use = db_n_use(d);
     sel = randperm(numel(files), n_use);
     fprintf('%s: using %d of %d textures\n', name, n_use, numel(files));
     for i = 1:n_use
@@ -52,8 +65,12 @@ for d = 1:numel(db_names)
             fullfile(files(sel(i)).folder, files(sel(i)).name), cfg, ...
             struct('gray', p.gray, 'gamma', p.gamma, 'resize_pertex', p.resize, 'ecc', down_level));
         A = uint8(A * 255 / max(A(:)));
-        all_tex{end+1} = A; %#ok<SAGROW>
-        if strcmp(name, 'brodatz'), brod_tex{end+1} = A; end %#ok<SAGROW>
+        n_all = n_all + 1;
+        all_tex{n_all} = A;
+        if strcmp(name, 'brodatz')
+            n_brod = n_brod + 1;
+            brod_tex{n_brod} = A;
+        end
     end
 end
 

@@ -20,7 +20,10 @@ Ordered roughly by expected impact on the Brodatz transfer gap.
 
 **Still to do:**
 
-- **Dead B/R code** — s2 builds unused dim-2/3 color priors; s4 maps dims 2/3. Harmless; prune when convenient.
+- ~~Dead B/R code~~ — resolved by the colour extension (`cfg.features.color`, see README /
+  `docs/color-extension-plan.md`): s2's dim-2/3 (B/R pixel) priors were always computed but never
+  requested downstream; s4/s5 now request them, and train a chromatic spot sub-bound over them,
+  whenever colour mode is on. The twin network itself still ignores dims 2/3 either way.
 - **ecc > 1 patch size** — the Bayesian cuts `64/ecc` patches while the network input is fixed at 64 px;
   reconcile before comparing peripherally. Also needs same-ecc bins (s4/s5 default `eccb = 1`).
 

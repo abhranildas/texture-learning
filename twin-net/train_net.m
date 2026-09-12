@@ -402,7 +402,7 @@ for i = 1:5
     accuracy(i) = sum(Y == pair_labels_acc)/accuracy_batch_size;
 end
 
-average_accuracy = mean(accuracy)*100
+average_accuracy = mean(accuracy)*100   % no ";" deliberately -- prints to the console
 
 %% Display test pairs with predictions
 test_batch_size = 20;

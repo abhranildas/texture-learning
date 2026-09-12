@@ -13,11 +13,20 @@ function files = list_natural_images(cfg)
 %
 %   See also S1_LEARN_COLOR_TRANSFORM, S23_LEARN_PRIORS_AND_PAIRS, S4_OPTIMIZE_BINS
 
-    files = {};
+    listings = cell(1, numel(cfg.natural.sets));
+    n_files = 0;
     for set_idx = 1:numel(cfg.natural.sets)
-        listing = dir(fullfile(cfg.paths.natural_images, [cfg.natural.sets{set_idx} '_*.png']));
+        listings{set_idx} = dir(fullfile(cfg.paths.natural_images, ...
+            [cfg.natural.sets{set_idx} '_*.png']));
+        n_files = n_files + numel(listings{set_idx});
+    end
+    files = cell(1, n_files);
+    idx = 0;
+    for set_idx = 1:numel(listings)
+        listing = listings{set_idx};
         for file_idx = 1:numel(listing)
-            files{end+1} = fullfile(listing(file_idx).folder, listing(file_idx).name); %#ok<AGROW>
+            idx = idx + 1;
+            files{idx} = fullfile(listing(file_idx).folder, listing(file_idx).name);
         end
     end
     if isempty(files)
