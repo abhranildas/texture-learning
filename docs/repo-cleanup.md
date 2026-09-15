@@ -75,7 +75,7 @@ Left unchecked until actually done. Full rationale in section 3.
 
 - [x] **0.3.1.** Collapse the two copies of `local_show_pair`: extracted to `demo/local_show_pair.m`, both call sites (`demo/plot_stage3.m`, `demo/plot_stage6_pairs.m`) updated.
 - [ ] **0.3.2.** Collapse `experiments/adaptive_hist_exp.m`'s `collect_natural`/`collect_brodatz`
-- [ ] **0.3.3.** Convert `pair_responses`' 10 positional arguments (or similar) into an `arguments` block
+- [x] **0.3.3.** Convert `pair_responses`' 10 positional arguments (or similar) into an `arguments` block — done: all ten validated by class/attribute, no defaults (MATLAB forbids an optional argument before a required one, and `cfg` is last and required), no reordering, no call-site change at any of the 6 invocations. Details in section 4.3.
 - [ ] **0.3.4.** Turn the three scripts (incl. `experiments/adaptive_hist_exp.m`) into functions
 - [x] **0.3.5.** Triage the commented-out code — done, one verdict per block, recorded in section 4.3, nothing deleted. Only **one** real block survives in the 66 in-scope files (`demo/plot_stage2.m:46`); the survey's "113 lines" was a loose heuristic dominated by header-doc usage examples, which do not count. Keeping is the default; the single conversion it licenses becomes item 0.3.10 below.
 - [ ] **0.3.6.** Reorder statements, even when it looks purely cosmetic
@@ -621,6 +621,125 @@ Notable, and worth the user's attention: section 1 measured **113 of 5744 lines*
 | block | file:lines | what the surrounding code says it was for | verdict | action taken |
 |---|---|---|---|---|
 | `stage2-pdf-ylim` | `demo/plot_stage2.m:46` — `% ylim([0 1]); % Removed ylim because PDF can exceed 1 or have a different scale` | Sits inside the local function `plot_feature`, between `set(gca, 'YTick', [])` (line 45) and `trunc_xlim(e, N)` (line 47). The live code fixes the *x* range (`trunc_xlim`, the 1%–99% span of the CDF `N`) and hides the y ticks entirely, but never constrains the y range — so `ylim` is not reimplemented anywhere else in the file, it was simply dropped. `pdf = diff([0, N])` on line 43 is a per-bin probability mass whose peak depends on the feature and the bin widths, which is exactly the reason the author wrote down. Every identifier it references (`ylim`) is still valid, and switching it back on would be a one-character edit. | **alternative** — a display parameter the author tried, switched away from, and recorded the reason for inline. Not *superseded*: no live code replaced it. Not *scaffolding*: it is a presentation setting, not a debug print. | recommend: convert, do not delete. Replace the two-part line with plain prose in the same spot, e.g. `% No y-limit: the per-bin PDF can exceed 1, and its scale differs per feature.` That keeps the one thing of value (why there is no `ylim` here, so a later reader does not "fix" its absence) and stops it masquerading as code. Low risk, cosmetic only. |
+
+---
+
+**Item 0.3.3 — `arguments` block for `pipeline/pair_responses.m`.** Done 2026-09-15, MATLAB R2024b. The item was re-located by name, not by line number, and is still accurate: the function still had the same ten positional arguments and no validation of any kind.
+
+The block, placed after the header comment and before the first statement:
+
+```matlab
+    arguments
+        patches              {mustBeNumeric, mustBeReal}
+        bin_bounds     (:,:) {mustBeNumeric, mustBeReal}
+        n_bins               {mustBeInteger, mustBeNonnegative}
+        feature_list         {mustBeMember(feature_list, [0, 1])}
+        spot_llr_dims        {mustBeInteger, mustBePositive}
+        edge_llr_dims        {mustBeInteger, mustBePositive}
+        power_suppress (1,1) {mustBeNumeric, mustBeReal, mustBeNonnegative}
+        edge_thresh    (1,1) {mustBeNumeric, mustBeReal, mustBeNonnegative}
+        patch_size     (1,1) {mustBeInteger, mustBePositive}
+        cfg            (1,1) struct
+    end
+```
+
+**Validation policy: attributes always, size only where the size is load-bearing.** The hard constraint on this item is that validation may reject what was never valid but must not narrow what is currently accepted, and a size specification is the easiest way to break that. So a size appears in only three places, each one load-bearing: `(1,1)` on the three scalars, which the body uses as scalars (`1:patch_size`, and both constants passed straight into `vislab.nat_stat_bayes.dv_power` / `dv_edge_hist`), so a non-scalar was never valid; `(:,:)` on `bin_bounds`, which its sole producer `vislab.nat_stat_bayes.load_bin_bounds` returns as an `n_features x max_bins` matrix and its consumers index as `(f, 1:n_bins(f))`, so a 3-D-or-higher array was never valid; and `(1,1) struct` on `cfg`.
+
+Three deliberate omissions, each one a case where the obvious-looking validation *would* have narrowed:
+
+- **No size on the four vectors** (`n_bins`, `feature_list`, `spot_llr_dims`, `edge_llr_dims`). All four are documented as row vectors and every producer in the repo yields a row, so `(1,:)` was tempting — but no orientation here is load-bearing. `vislab.nat_stat_bayes.dv_spot_hist` and `dv_edge_hist` both return `1 x numel(feature_list)` *rows* (their own headers, line 30 and line 31 respectively), and for a vector `v` the expression `v(idx)` takes `v`'s orientation regardless of `idx`'s, so `rh`/`re` stay rows and the `[rh, re, rp]` concatenation is safe even if a caller passed a column of dims. Specifying `(1,:)` would therefore have rejected input that works today, for no gain. The attribute validators still catch the realistic error this item exists to catch — a mis-ordered positional call.
+- **No `(:,:,:,:)` on `patches`**, even though the header documents a 4-D tensor. Whether a 4-dimension size specification rejects a 3-D array depends on MATLAB's trailing-singleton rules in `arguments` blocks, which I did not verify (verifying it would have needed a headless run outside the standing authorization). A 3-D single-pair array does work today — `size(patches, 4)` is 1 and the `patches(..., :, i)` indexing is valid — so an unverified 4-D specification risked narrowing. Class and realness only; the shape stays documentation.
+- **No `mustBeNonempty` on `patches`.** A zero-pair tensor such as `zeros(64, 128, 1, 0)` is currently valid and useful: `size(patches, 4)` is 0, the loop never runs, and the function returns an empty `R`, an empty `keep`, and a fully-populated `col`. `mustBeNonempty` would have rejected it. Confirmed by the call-site probe below, which relies on exactly that path.
+
+**`cfg` is validated as a whole struct, not field by field.** Three reasons, in order of weight. (1) Its fields are zone-2 config-struct vocabulary whose renaming is item 0.3.7's job; spelling `cfg.norm.target_contrast` and the four `cfg.dv.sd*` names into a validator here would create a second place 0.3.7 has to edit, for no new guarantee. (2) MATLAB's `arguments` block has no facility for nested field paths, so enforcing them means a custom local validation function — a new function added to the file, duplicating knowledge the header already carries. (3) A missing field already fails immediately and legibly: `cfg.norm.target_contrast` is read on the very first statement of the body, before any computation, so a validator would move the error a few lines earlier and nothing more.
+
+**No argument was given a default, and the reason is structural rather than a judgement call.** MATLAB requires optional positional arguments to be *trailing* — a required argument may not follow one with a default. `cfg` is the tenth argument, is required, and has no sensible default, so no argument before it can be made optional without reordering, which is out of scope (see below). This settles the question independently of the call-site evidence, but the call sites agree anyway: reading all six invocations, the only argument every caller passes identically is `power_suppress`, and even there three of the five files pass the variable `cfg.dv.power_suppress` rather than a literal, with only `tools/golden_harness.m:67` passing a bare `16`. `config.m:97` is the single source of truth for that value and should stay so; a default of 16 baked into the signature would become a second one.
+
+**Argument order unchanged.** No correctness reason to change it, and reordering would touch all six invocations at both name and position — a separate and riskier class of Stage 3 change.
+
+**`lo`/`hi` (the `-25`/`+25` outlier window) deliberately left hardcoded in the body — out of scope for this item.** Two reasons. First, nothing wants to vary them: no caller parameterizes the window, and there is no configuration path to it. Second, and decisively, `docs/to-do.md` item 11 ("Outlier rejection: magnitude window → finiteness test") plans to *delete* both variables outright, replacing `all(check > lo) && all(check < hi)` with `all(isfinite(check))` after Bill's revised `nat_near_far_dv_2.m:131`. Promoting them to arguments-with-defaults now would add plumbing at every level that a planned revision then has to unpick, and would freeze an arbitrary cutoff into the public signature just as the intent is to remove it. They are already named local constants on one line, which is as much clarity as they need while they live.
+
+**Header doc corrected while documenting the validated arguments.** The `cfg` line listed only `cfg.norm.target_contrast` and `cfg.dv.sd1/nsd1/sd2/nsd2`, but the body also reads `cfg.features.spot_achr_dims` (to size `col.spot_achr`). Added. This is a documentation inaccuracy, not a bug — no behaviour is wrong — so nothing was filed in section 0.4.
+
+**Call sites: six invocations in five files, none changed.** A positional call stays positional under an `arguments` block, and every invocation already passes exactly ten arguments, so no call syntax needed to change. Exhaustiveness: `grep -rn "pair_responses" .` over the *whole* repo including the two gitignored ancestral-code directories returns hits in eleven files, of which the six below are invocations and the rest are prose mentions in header docs (`demo/patch_to_rgb_display.m`, `demo/plot_stage5.m`, `demo/plot_stage5_intermediate.m`, `demo/sample_texture_pairs.m`, `pipeline/s4_optimize_bins.m`, `run_demo.m`) or in `docs/`. **Neither `Bill's old code/` nor `Bill's old code - revised/` contains any reference**, so no live ancestral caller exists. A separate grep for `['"]pair_responses` found no quoted-string or dynamic (`feval`/`str2func`/`exist`/`which`) reference anywhere outside `.git/`.
+
+| # | invocation | changed? |
+|---|---|---|
+| 1 | `demo/compute_demo_responses.m:41` | no |
+| 2 | `demo/compute_demo_responses.m:43` | no |
+| 3 | `demo/plot_stage6_pairs.m:58` | no |
+| 4 | `pipeline/s5_train_decision_vars.m:75` | no |
+| 5 | `pipeline/s5_train_decision_vars.m:77` | no |
+| 6 | `tools/golden_harness.m:67` | no |
+
+**Call-site type-check, all six, by execution.** `tools/golden_harness.m:67` is checked for real by the harness run below — it executed through the new block and produced the same checksum as before. For the other five, a scratchpad probe rebuilt each call site's actual argument expressions from `config(true)` and `vislab.nat_stat_bayes.load_bin_bounds`, then passed them to `pair_responses` with a zero-pair `patches` tensor, so the validators ran in full while the loop body never executed. Verbatim:
+
+```
+compute_demo_responses / plot_stage6_pairs VALIDATION OK   size(R)=[0 11]  numel(keep)=0  col fields: spot, spot_achr, spot_chrom, edge, power, border
+s5_train_decision_vars (x2)                VALIDATION OK   size(R)=[0 11]  numel(keep)=0  col fields: spot, spot_achr, spot_chrom, edge, power, border
+golden_harness                             VALIDATION OK   size(R)=[0 11]  numel(keep)=0  col fields: spot, spot_achr, spot_chrom, edge, power, border
+```
+
+`demo/plot_stage6_pairs.m` was also traced by hand, as the item asked: `patch_size = cfg.patch.size / ecc` = 64/1 = 64 (integer, positive — `config.m:77` and `run_demo.m:112` give 64 and `ecc = 1`; `ecc` is documented repo-wide as an integer divisor from {1,2,4,8}, all of which divide 64, so `mustBeInteger` cannot fire on any current path); `spot_llr_dims = cfg.features.spot_dims` and `edge_llr_dims = cfg.features.edge_dv_dims` are positive integer row vectors from `config.m:140-147`; `power_suppress = 16` and `edge_thresh = 50` are nonnegative real scalars from `config.m:97-98`; `feature_list = zeros(1, 20)` with `cfg.features.dv_dims` set to 1, so it holds only 0s and 1s and satisfies `mustBeMember`; `bin_bounds`/`n_bins` come straight from `load_bin_bounds`. Every one type-checks.
+
+**Golden harness, before and after — no field changed its verdict.** Verbatim `golden_harness('replay', 'tools/golden_ref.mat')` first, which gives only the aggregate assert:
+
+```
+{Error using assert
+golden output changed -- this edit is not behaviour-preserving
+
+Error in golden_harness (line 127)
+    assert(isequal(ref.golden, golden), 'golden_harness:mismatch', ...
+```
+
+That is B2.2 and it names no field, so the per-field reading needed the computed struct, which replay mode discards when it throws. A scratchpad helper called `golden_harness('capture', <scratchpad>/pre.mat')` and compared the returned struct against the committed reference field by field. **`tools/golden_ref.mat` was not written, not re-captured, and is unchanged** — the capture went only to a session scratchpad path, so nothing was blessed. Before the edit:
+
+```
+--- per-field comparison vs tools/golden_ref.mat ---
+prep_grid_checksum               FAIL  numeric mismatch  ref=25338656.607611127  new=25338098.821923982  absdiff=557.78568714484572
+dv_fields                        PASS
+demo_pairs_size                  PASS
+pair_responses_checksum          FAIL  numeric mismatch  ref=224307.79032615953  new=232569.37061908742  absdiff=8261.5802929278871
+pair_responses_keep_n            PASS
+content_similarity_checksum      FAIL  numeric mismatch  ref=1442.0785314816135  new=1051.740400388818  absdiff=390.33813109279549
+grow_region_masks_checksum       PASS
+grow_region_masks_size           PASS
+sample_texture_ids_checksum      PASS
+sample_texture_pairs_checksum    FAIL  numeric mismatch  ref=13586114.960232332  new=13582226.131522207  absdiff=3888.8287101257592
+sample_texture_pairs_same_gt     PASS
+apply_dv_checksum                PASS
+forward_twin_checksum            PASS
+predict_twin_checksum            PASS
+pool_stats_checksum              PASS
+```
+
+After the edit, byte-for-byte the same output — same eleven PASS, same four FAIL, and identically the same `new=` values to all 17 digits:
+
+```
+--- per-field comparison vs tools/golden_ref.mat ---
+prep_grid_checksum               FAIL  numeric mismatch  ref=25338656.607611127  new=25338098.821923982  absdiff=557.78568714484572
+dv_fields                        PASS
+demo_pairs_size                  PASS
+pair_responses_checksum          FAIL  numeric mismatch  ref=224307.79032615953  new=232569.37061908742  absdiff=8261.5802929278871
+pair_responses_keep_n            PASS
+content_similarity_checksum      FAIL  numeric mismatch  ref=1442.0785314816135  new=1051.740400388818  absdiff=390.33813109279549
+grow_region_masks_checksum       PASS
+grow_region_masks_size           PASS
+sample_texture_ids_checksum      PASS
+sample_texture_pairs_checksum    FAIL  numeric mismatch  ref=13586114.960232332  new=13582226.131522207  absdiff=3888.8287101257592
+sample_texture_pairs_same_gt     PASS
+apply_dv_checksum                PASS
+forward_twin_checksum            PASS
+predict_twin_checksum            PASS
+pool_stats_checksum              PASS
+```
+
+Three things this pins down, all relevant to B2.2. The four failing fields are exactly the four B2.2 names, so this edit neither added nor removed a failure. `pair_responses_checksum` fails the *same way* before and after — a numeric mismatch with an identical fresh value, not a dimension or validation error — so the new block rejects nothing the harness passes. And `pair_responses_keep_n` **passes** in both runs, meaning the same set of pairs survives outlier rejection and only the summed response value differs; B2.2 remains open and untouched, with that as a new datum for whoever settles it.
+
+**`checkcode('pipeline/pair_responses.m')` is clean** (empty output) with the block in place.
+
+**No bug and no optimization found while doing this item** — a documented negative. Nothing was added to section 0.4 or 0.5. The `mustBeInteger` pass over `n_bins` is the only new per-call work and it is a scan of a 20-element vector, immaterial next to the per-pair histogram loop.
+
 
 </div>
 

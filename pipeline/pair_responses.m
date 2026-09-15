@@ -35,7 +35,13 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
 %     power_suppress - weak Fourier-power suppression constant (beta) for the power DV.
 %     edge_thresh    - gradient threshold for the edge histogram features (image units).
 %     patch_size     - patch side length in pixels.
-%     cfg            - config struct (uses cfg.norm.target_contrast, cfg.dv.sd1/nsd1/sd2/nsd2).
+%     cfg            - config struct (uses cfg.norm.target_contrast, cfg.dv.sd1/nsd1/sd2/nsd2
+%                      and cfg.features.spot_achr_dims).
+%
+%   All ten arguments are required and positional. The arguments block validates
+%   class and attributes, plus a size only where the size is load-bearing (the
+%   three scalars, and bin_bounds being a matrix); the vector shapes above are
+%   documentation, not enforced, since no orientation here affects the result.
 %
 %   Outputs
 %     R    - [n_kept x (numel(spot_llr_dims)+numel(edge_llr_dims)+3)] response matrix.
@@ -43,6 +49,19 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
 %     col  - struct of column-index ranges into R (see above).
 %
 %   See also SAMPLE_NEARFAR_PAIRS, S5_TRAIN_DECISION_VARS
+
+    arguments
+        patches              {mustBeNumeric, mustBeReal}
+        bin_bounds     (:,:) {mustBeNumeric, mustBeReal}
+        n_bins               {mustBeInteger, mustBeNonnegative}
+        feature_list         {mustBeMember(feature_list, [0, 1])}
+        spot_llr_dims        {mustBeInteger, mustBePositive}
+        edge_llr_dims        {mustBeInteger, mustBePositive}
+        power_suppress (1,1) {mustBeNumeric, mustBeReal, mustBeNonnegative}
+        edge_thresh    (1,1) {mustBeNumeric, mustBeReal, mustBeNonnegative}
+        patch_size     (1,1) {mustBeInteger, mustBePositive}
+        cfg            (1,1) struct
+    end
 
     target_contrast = cfg.norm.target_contrast;
     lo = -25; hi = 25;
