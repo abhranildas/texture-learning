@@ -14,7 +14,7 @@ function A_pool = load_nat_A_pool(cfg, down_level)
 %   input layer, so this A is equivalent to the Bayesian per-patch-normalized A.
 %
 %   This is the expensive, one-time step for on-the-fly training: it runs at the
-%   start of training, after which getTwinBatch_nat_live cuts fresh patches out of
+%   start of training, after which get_twin_batch_nat_live cuts fresh patches out of
 %   this pool cheaply, so patch pairs never repeat and there is nothing to memorize.
 %
 %   Inputs
@@ -24,7 +24,7 @@ function A_pool = load_nat_A_pool(cfg, down_level)
 %   Output
 %     A_pool     - 1 x n_img cell array; A_pool{k} is a uint8 achromatic image.
 %
-%   See also GETTWINBATCH_NAT_LIVE, VISLAB.NAT_STAT_BAYES.SOURCE_TO_LMS
+%   See also GET_TWIN_BATCH_NAT_LIVE, VISLAB.NAT_STAT_BAYES.SOURCE_TO_LMS
 
     if nargin < 2 || isempty(down_level), down_level = 1; end
 

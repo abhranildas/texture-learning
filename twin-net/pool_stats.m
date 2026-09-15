@@ -1,6 +1,6 @@
-function emb = poolStats(F)
-% POOLSTATS  Order-invariant texture statistics of a network feature map.
-%   emb = poolStats(F)
+function emb = pool_stats(F)
+% POOL_STATS  Order-invariant texture statistics of a network feature map.
+%   emb = pool_stats(F)
 %
 %   Pools over spatial position, so feature *position* is discarded and only
 %   feature *statistics* are kept (mimicking the position-agnostic features of the
@@ -17,7 +17,7 @@ function emb = poolStats(F)
 %     emb - "SSCB" dlarray, [1 x 1 x 2C x B]: per-patch, L2-normalized
 %           concatenation of channel means and channel standard deviations.
 %
-%   See also FORWARDTWIN, PREDICTTWIN
+%   See also FORWARD_TWIN, PREDICT_TWIN
 
     F = stripdims(F);                          % work unformatted, keep autodiff
 

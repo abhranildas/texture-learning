@@ -16,7 +16,7 @@ function golden = golden_harness(mode, golden_file)
 %     demo/                     sample_texture_pairs, apply_dv
 %                                (compute_demo_responses reuses pair_responses,
 %                                already covered above)
-%     twin-net/                 forwardTwin, predictTwin, poolStats, on a tiny
+%     twin-net/                 forward_twin, predict_twin, pool_stats, on a tiny
 %                                synthetic dlnetwork (needs the Deep Learning
 %                                Toolbox; not a stand-in for train_net.m's real
 %                                architecture, just enough to exercise the
@@ -108,10 +108,10 @@ if exist('dlnetwork', 'file') == 2
     fcParams.FcBias = dlarray(randn(1, 1));
     X1 = dlarray(randn(8, 8, 1, 3), 'SSCB');
     X2 = dlarray(randn(8, 8, 1, 3), 'SSCB');
-    golden.forward_twin_checksum = sum(extractdata(forwardTwin(net, fcParams, X1, X2)));
-    golden.predict_twin_checksum = sum(extractdata(predictTwin(net, fcParams, X1, X2)));
+    golden.forward_twin_checksum = sum(extractdata(forward_twin(net, fcParams, X1, X2)));
+    golden.predict_twin_checksum = sum(extractdata(predict_twin(net, fcParams, X1, X2)));
     F = dlarray(randn(4, 4, n_channels, 2), 'SSCB');
-    golden.pool_stats_checksum = sum(extractdata(poolStats(F)), 'all');
+    golden.pool_stats_checksum = sum(extractdata(pool_stats(F)), 'all');
 else
     golden.forward_twin_checksum = [];
     golden.predict_twin_checksum = [];

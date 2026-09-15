@@ -5,14 +5,14 @@
 %   time).
 %
 %   NOT used by twin-net/train_net.m, which now samples near/far pairs on the fly (see
-%   getTwinBatch_nat_live.m + load_nat_A_pool.m) so pairs never repeat. This script is
+%   get_twin_batch_nat_live.m + load_nat_A_pool.m) so pairs never repeat. This script is
 %   kept as a standalone tool for offline inspection/regeneration of a fixed pair set.
 %
 %   Saves near, far -- [patch_size x patch_size x 2 x N] uint8, dim 3 holding the two
 %   patches of each pair -- to data/stimuli/nat/patch_pairs.mat (or
 %   patch_pairs_dsmpl_<down_level>.mat if down_level > 1).
 %
-%   See also FIND_NAT_PATCH, GETTWINBATCH_NAT_LIVE, TEXTURE_SAME_DIFF_PATCHES_NET
+%   See also FIND_NAT_PATCH, GET_TWIN_BATCH_NAT_LIVE, TEXTURE_SAME_DIFF_PATCHES_NET
 
 cfg = config;
 patch_size = cfg.patch.size;

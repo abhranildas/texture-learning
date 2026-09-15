@@ -9,7 +9,7 @@
 %
 %   Each is [patch_size x patch_size x 2 x N] uint8; dim 3 holds the two patches of a
 %   pair (1 = reference, 2 = partner), matching the natural-image near/far layout so
-%   getTwinBatchPairs can slice it directly. Saved to data/stimuli/textures/patch_pairs.mat.
+%   get_twin_batch_pairs can slice it directly. Saved to data/stimuli/textures/patch_pairs.mat.
 %
 %   Ingestion goes through the shared vislab.nat_stat_bayes.source_to_lms with the
 %   per-database flags from cfg.textures -- the SAME function and flags the Bayesian
@@ -22,7 +22,7 @@
 %   Note: same, diff, same_brod, diff_brod are frozen save names (zone-3, see
 %   docs/readability-pass.md section 5.3) -- do not rename.
 %
-%   See also GETTWINBATCHPAIRS, TRAIN_NET
+%   See also GET_TWIN_BATCH_PAIRS, TRAIN_NET
 
 cfg = config;
 patch_size = cfg.patch.size;

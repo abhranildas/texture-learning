@@ -18,7 +18,7 @@ function coords = find_nat_patch(img, patch_size, same_max_dist)
 %              row 1 = near reference patch, row 2 = near partner patch,
 %              row 3 = far reference patch,  row 4 = far partner patch.
 %
-%   See also GETTWINBATCH_NAT_LIVE
+%   See also GET_TWIN_BATCH_NAT_LIVE
 
 coords = nan(4, 2);
 sz = size(img);

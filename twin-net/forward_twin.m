@@ -1,10 +1,10 @@
-function Y = forwardTwin(net, fcParams, X1, X2)
-% FORWARDTWIN  Twin-network similarity prediction, training mode (records for autodiff).
-%   Y = forwardTwin(net, fcParams, X1, X2)
+function Y = forward_twin(net, fcParams, X1, X2)
+% FORWARD_TWIN  Twin-network similarity prediction, training mode (records for autodiff).
+%   Y = forward_twin(net, fcParams, X1, X2)
 %
 %   Passes each image through the shared twin subnetwork via forward (not predict),
 %   so batchnorm/dropout state and the autodiff trace needed by dlgradient are kept.
-%   Use forwardTwin during training; use predictTwin for inference.
+%   Use forward_twin during training; use predict_twin for inference.
 %
 %   Inputs
 %     net      - dlnetwork, the shared twin subnetwork.
@@ -17,12 +17,12 @@ function Y = forwardTwin(net, fcParams, X1, X2)
 %     Y - "CB" dlarray, predicted probability in (0,1) that each pair is similar
 %         (near/same, closer to 1) vs dissimilar (far/different, closer to 0).
 %
-%   See also PREDICTTWIN, MODELLOSS, POOLSTATS
+%   See also PREDICT_TWIN, MODEL_LOSS, POOL_STATS
 
 % Pass each image through the twin subnetwork, then pool its feature map to
-% mean+std texture statistics (L2-normalized) via poolStats.
-Y1 = poolStats(forward(net, X1));
-Y2 = poolStats(forward(net, X2));
+% mean+std texture statistics (L2-normalized) via pool_stats.
+Y1 = pool_stats(forward(net, X1));
+Y2 = pool_stats(forward(net, X2));
 
 % Subtract the feature vectors
 Y = abs(Y1 - Y2);

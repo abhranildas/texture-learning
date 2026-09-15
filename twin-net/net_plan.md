@@ -39,7 +39,7 @@ Refresh on the existing every-50-iterations schedule.
 
 ### 4. Regularization / augmentation (tidy the curve, unlikely to close the gap alone)
 
-- Data augmentation (flips/rotations) in `getTwinBatch_nat_live`.
+- Data augmentation (flips/rotations) in `get_twin_batch_nat_live`.
 - Weight decay on both `adamupdate` calls in `train_net.m`.
 
 ### 5. Contrast-normalization ablation (empirical only)
@@ -54,7 +54,7 @@ natural images), and keep an **interpretable, statistics-based** embedding compa
 
 | Idea | What changes | May benefit the goals | May not / cost | Verdict |
 |---|---|---|---|---|
-| **Average pooling** | mean instead of max in the intermediate pools | Matches `poolStats`' mean/std philosophy — "pool statistics" end to end; **adds no parameters** (stays lean) | Can wash out sparse-but-strong features that max's "present-anywhere" behavior keeps; task-dependent | Cheap and on-theme — try first; but a small change, so the effect may sit within run-to-run noise |
+| **Average pooling** | mean instead of max in the intermediate pools | Matches `pool_stats`' mean/std philosophy — "pool statistics" end to end; **adds no parameters** (stays lean) | Can wash out sparse-but-strong features that max's "present-anywhere" behavior keeps; task-dependent | Cheap and on-theme — try first; but a small change, so the effect may sit within run-to-run noise |
 | **Strided convolution** | conv steps by 2 and does the downsampling (learned) instead of a max-pool | Learnable downsampling can preserve more texture structure than a fixed max | **Adds parameters** → pushes back toward overfitting natural images (the original problem) | Small likely gain, wrong direction on capacity — deprioritize |
 | **Metric-learning loss** (contrastive / triplet) | shape the embedding space directly (same → close, different → far) instead of `abs`-diff → fc → cross-entropy | Makes the **embedding the object of study** — a distance space to visualize and compare geometrically to the Bayesian features; drops the somewhat arbitrary fc comparison head | Near/far is a noisy *proxy* for same/different, so margin losses are finicky; reintroduces margin + decision-threshold knobs; not guaranteed to transfer better | Biggest lever — most likely to *clearly* exceed noise (in either direction); the real experiment |
 
@@ -82,7 +82,7 @@ Notes:
   a per-scale 5×5×8 conv, each resized to a common 12×12 and depth-concatenated (24 channels), then a
   single 3×3×32 tail conv → 10×10×32. Average-pool is a box approximation to a Gaussian pyramid; a Laplacian
   variant would use scale differences.
-- **`poolStats` extends naturally:** pool mean/std within each (scale, orientation) channel → per-scale
+- **`pool_stats` extends naturally:** pool mean/std within each (scale, orientation) channel → per-scale
   statistics, i.e. essentially the steerable-pyramid texture descriptor.
 - **The OTF sets the fine-scale limit** ([config.m](../config.m) optics): the eye's optics already remove
   spatial frequencies above the optical cutoff, so there is no point adding filters finer than the OTF passes.
@@ -130,7 +130,7 @@ target because it rewards shortcut-exploitation.
 ## Architecture reference
 
 Conv stack `conv → relu → pool` ×4, channels **8‑16‑16‑32** (conv1 = 8 kernels of 5×5).
-Embedding: mean+std pooling of the final map → **64-d, L2-normalized** (`poolStats`), merged by a
+Embedding: mean+std pooling of the final map → **64-d, L2-normalized** (`pool_stats`), merged by a
 1×64 weight. ~9,600 conv params.
 
 ## Ruled out

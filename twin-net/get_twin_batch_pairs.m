@@ -1,6 +1,6 @@
-function [X1, X2, pair_labels] = getTwinBatchPairs(pos, neg, mini_batch_size)
-% GETTWINBATCHPAIRS  Draw a balanced batch from two arrays of pre-stored patch pairs.
-%   [X1, X2, pair_labels] = getTwinBatchPairs(pos, neg, mini_batch_size)
+function [X1, X2, pair_labels] = get_twin_batch_pairs(pos, neg, mini_batch_size)
+% GET_TWIN_BATCH_PAIRS  Draw a balanced batch from two arrays of pre-stored patch pairs.
+%   [X1, X2, pair_labels] = get_twin_batch_pairs(pos, neg, mini_batch_size)
 %
 %   Used for both natural-image pairs (pos = near, neg = far) and Brodatz/texture
 %   test pairs (pos = same texture, neg = different textures). Splits the batch
@@ -16,7 +16,7 @@ function [X1, X2, pair_labels] = getTwinBatchPairs(pos, neg, mini_batch_size)
 %                   and patch 2 of each drawn pair.
 %     pair_labels - [1 x mini_batch_size], 1 for pos pairs, 0 for neg pairs.
 %
-%   See also GETTWINBATCH_NAT_LIVE, TEXTURE_SAME_DIFF_PATCHES_NET
+%   See also GET_TWIN_BATCH_NAT_LIVE, TEXTURE_SAME_DIFF_PATCHES_NET
 
 n_pos = size(pos, 4);
 n_neg = size(neg, 4);

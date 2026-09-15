@@ -1,8 +1,8 @@
-function [loss, gradients_subnet, gradients_params] = modelLoss(net, fcParams, X1, X2, pair_labels)
-% MODELLOSS  Twin-network loss and gradients for one training batch.
-%   [loss, gradients_subnet, gradients_params] = modelLoss(net, fcParams, X1, X2, pair_labels)
+function [loss, gradients_subnet, gradients_params] = model_loss(net, fcParams, X1, X2, pair_labels)
+% MODEL_LOSS  Twin-network loss and gradients for one training batch.
+%   [loss, gradients_subnet, gradients_params] = model_loss(net, fcParams, X1, X2, pair_labels)
 %
-%   Called via dlfeval so dlgradient can trace through forwardTwin. Binary
+%   Called via dlfeval so dlgradient can trace through forward_twin. Binary
 %   cross-entropy between the predicted similarity and the pair label.
 %
 %   Inputs
@@ -18,10 +18,10 @@ function [loss, gradients_subnet, gradients_params] = modelLoss(net, fcParams, X
 %     gradients_subnet - gradients of loss w.r.t. net.Learnables.
 %     gradients_params - gradients of loss w.r.t. fcParams.
 %
-%   See also FORWARDTWIN, TRAIN_NET
+%   See also FORWARD_TWIN, TRAIN_NET
 
 % Pass the image pair through the network.
-Y = forwardTwin(net, fcParams, X1, X2);
+Y = forward_twin(net, fcParams, X1, X2);
 
 % Calculate binary cross-entropy loss.
 loss = crossentropy(Y, pair_labels, ClassificationMode="multilabel");

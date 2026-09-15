@@ -7,8 +7,8 @@
 %   data/models/net_on_nat.mat (fields net, fcParams -- both frozen names).
 %   Run from the repo root with twin-net/ on the MATLAB path (run setup first).
 %
-%   See also LOAD_NAT_A_POOL, GETTWINBATCH_NAT_LIVE, GETTWINBATCHPAIRS, MODELLOSS,
-%   PREDICTTWIN, TEXTURE_SAME_DIFF_PATCHES_NET
+%   See also LOAD_NAT_A_POOL, GET_TWIN_BATCH_NAT_LIVE, GET_TWIN_BATCH_PAIRS,
+%   MODEL_LOSS, PREDICT_TWIN, TEXTURE_SAME_DIFF_PATCHES_NET
 
 clearvars
 clc
@@ -55,7 +55,7 @@ load(bpfile, 'same', 'diff', 'same_brod', 'diff_brod');
 
 %% Define Network Architecture
 % Shared subnetwork. Four selectable architectures; all output an H x W x n_chan map
-% that poolStats reduces to a 2*n_chan-vector (n_chan channel means + n_chan stds) per patch.
+% that pool_stats reduces to a 2*n_chan-vector (n_chan channel means + n_chan stds) per patch.
 arch = "pyramid";   % "baseline" | "dilated" | "multiscale" | "pyramid"
 
 switch arch
@@ -89,7 +89,7 @@ switch arch
         % pooling. Keep only the first maxpool (it cheaply shrinks the large early map);
         % drop the other two. Dilations 1-2-2-2 give a receptive field of ~38 px (close to
         % the baseline's ~40) while leaving a 14x14x32 final map -- ~196 spatial samples for
-        % poolStats vs the baseline's 16. Effective kernel = dilation*(k-1)+1.
+        % pool_stats vs the baseline's 16. Effective kernel = dilation*(k-1)+1.
         layers = [
             imageInputLayer([64 64 1],Normalization=@(img) img/mean(img(:))) % 64x64
             % 60x60 x8
@@ -206,7 +206,7 @@ end
 
 net = dlnetwork(layers);
 
-% merge with fully connected layer: poolStats emits 2*n_chan (channel means + stds).
+% merge with fully connected layer: pool_stats emits 2*n_chan (channel means + stds).
 fc_weights = dlarray(0.01*single(randn(1,2*n_chan)));
 fc_bias = dlarray(0.01*single(randn(1,1)));
 fcParams = struct("FcWeights",fc_weights,"FcBias",fc_bias);
@@ -251,13 +251,13 @@ colormap(ax_kernels, gray);
 
 % OPTIMIZATION: Pre-load fixed texture validation batches to the GPU (all textures +
 % Brodatz-only), each reused every check.
-[X_val1, X_val2, val_labels] = getTwinBatchPairs(same, diff, mini_batch_size);
+[X_val1, X_val2, val_labels] = get_twin_batch_pairs(same, diff, mini_batch_size);
 X_val1 = dlarray(single(gpuArray(X_val1)),"SSCB");
 X_val2 = dlarray(single(gpuArray(X_val2)),"SSCB");
 val_labels = gpuArray(val_labels);
 
 [X_val_brod1, X_val_brod2, val_labels_brod] = ...
-    getTwinBatchPairs(same_brod, diff_brod, mini_batch_size);
+    get_twin_batch_pairs(same_brod, diff_brod, mini_batch_size);
 X_val_brod1 = dlarray(single(gpuArray(X_val_brod1)),"SSCB");
 X_val_brod2 = dlarray(single(gpuArray(X_val_brod2)),"SSCB");
 val_labels_brod = gpuArray(val_labels_brod);
@@ -275,7 +275,7 @@ while iteration < n_iterations && isvalid(monitor_fig)
 
     % Sample a fresh, never-repeating mini-batch of natural-image near/far pairs
     [X1, X2, pair_labels] = ...
-        getTwinBatch_nat_live(A_pool_train, mini_batch_size, patch_size, same_max_dist);
+        get_twin_batch_nat_live(A_pool_train, mini_batch_size, patch_size, same_max_dist);
 
     % Patches are cut on the CPU; move the finished batch to the GPU.
     X1 = dlarray(single(gpuArray(X1)),"SSCB");
@@ -284,7 +284,7 @@ while iteration < n_iterations && isvalid(monitor_fig)
 
     % Evaluate the model loss on training images
     [training_loss, gradients_subnet, gradients_params] = ...
-        dlfeval(@modelLoss, net, fcParams, X1, X2, pair_labels);
+        dlfeval(@model_loss, net, fcParams, X1, X2, pair_labels);
 
     % Measure training accuracy on THIS batch BEFORE the weight update. With the
     % on-the-fly sampler no pair ever repeats, so this batch is fresh data the
@@ -292,7 +292,7 @@ while iteration < n_iterations && isvalid(monitor_fig)
     % number that lines up with the validation curves. (Measuring after the update,
     % as before, was optimistically biased because the step just moved the weights
     % toward these exact examples.)
-    Y = predictTwin(net, fcParams, X1, X2);
+    Y = predict_twin(net, fcParams, X1, X2);
 
     % OPTIMIZATION: compute accuracy on the GPU, only gather the final scalar
     Y = round(extractdata(Y));
@@ -313,13 +313,13 @@ while iteration < n_iterations && isvalid(monitor_fig)
 
     if mod(iteration, 50) == 0 || iteration == 1
         % Evaluate predictions on the all-textures test set
-        Y_val = predictTwin(net, fcParams, X_val1, X_val2);
+        Y_val = predict_twin(net, fcParams, X_val1, X_val2);
         Y_val = round(extractdata(Y_val));
         tex_val_acc = gather(sum(Y_val == val_labels)/mini_batch_size);
         addpoints(line_tex_val, iteration, tex_val_acc);
 
         % Evaluate predictions on the Brodatz-only test set
-        Y_val_brod = predictTwin(net, fcParams, X_val_brod1, X_val_brod2);
+        Y_val_brod = predict_twin(net, fcParams, X_val_brod1, X_val_brod2);
         Y_val_brod = round(extractdata(Y_val_brod));
         brod_val_acc = gather(sum(Y_val_brod == val_labels_brod)/mini_batch_size);
         addpoints(line_brod_val, iteration, brod_val_acc);
@@ -329,13 +329,13 @@ while iteration < n_iterations && isvalid(monitor_fig)
         % than one fixed batch. Kept on held-out images (not the training images) so
         % it still measures generalization to unseen scenes.
         [X_val_nat1, X_val_nat2, val_labels_nat] = ...
-            getTwinBatch_nat_live(A_pool_val, mini_batch_size, patch_size, same_max_dist);
+            get_twin_batch_nat_live(A_pool_val, mini_batch_size, patch_size, same_max_dist);
         X_val_nat1 = dlarray(single(gpuArray(X_val_nat1)),"SSCB");
         X_val_nat2 = dlarray(single(gpuArray(X_val_nat2)),"SSCB");
         val_labels_nat = gpuArray(val_labels_nat);
 
         % Evaluate natural image validation accuracy
-        Y_val_nat = predictTwin(net, fcParams, X_val_nat1, X_val_nat2);
+        Y_val_nat = predict_twin(net, fcParams, X_val_nat1, X_val_nat2);
         Y_val_nat = round(extractdata(Y_val_nat));
         nat_val_acc = gather(sum(Y_val_nat == val_labels_nat)/mini_batch_size);
         addpoints(line_nat_val, iteration, nat_val_acc);
@@ -393,10 +393,10 @@ accuracy = zeros(1,5);
 accuracy_batch_size = 512;
 
 for i = 1:5
-    [X1, X2, pair_labels_acc] = getTwinBatchPairs(same, diff, accuracy_batch_size);
+    [X1, X2, pair_labels_acc] = get_twin_batch_pairs(same, diff, accuracy_batch_size);
     X1 = dlarray(single(gpuArray(X1)),"SSCB");
     X2 = dlarray(single(gpuArray(X2)),"SSCB");
-    Y = predictTwin(net, fcParams, X1, X2);
+    Y = predict_twin(net, fcParams, X1, X2);
     Y = gather(extractdata(Y));
     Y = round(Y);
     accuracy(i) = sum(Y == pair_labels_acc)/accuracy_batch_size;
@@ -407,13 +407,13 @@ average_accuracy = mean(accuracy)*100   % no ";" deliberately -- prints to the c
 %% Display test pairs with predictions
 test_batch_size = 20;
 
-[X_test1, X_test2, pair_labels_test] = getTwinBatchPairs(same, diff, test_batch_size);
+[X_test1, X_test2, pair_labels_test] = get_twin_batch_pairs(same, diff, test_batch_size);
 
 X_test1 = dlarray(single(gpuArray(X_test1)),"SSCB");
 X_test2 = dlarray(single(gpuArray(X_test2)),"SSCB");
 
 % calculate predicted probability
-Y_score = predictTwin(net, fcParams, X_test1, X_test2);
+Y_score = predict_twin(net, fcParams, X_test1, X_test2);
 Y_score = gather(extractdata(Y_score));
 
 % Convert the predictions to binary 0 or 1.

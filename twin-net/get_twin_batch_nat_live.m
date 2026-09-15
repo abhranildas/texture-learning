@@ -1,14 +1,14 @@
-function [X1, X2, pair_labels] = getTwinBatch_nat_live( ...
+function [X1, X2, pair_labels] = get_twin_batch_nat_live( ...
     A_pool, mini_batch_size, patch_size, same_max_dist)
-% GETTWINBATCH_NAT_LIVE  Cut a fresh batch of near/far patch pairs on the fly.
+% GET_TWIN_BATCH_NAT_LIVE  Cut a fresh batch of near/far patch pairs on the fly.
 %   [X1, X2, pair_labels] = ...
-%       getTwinBatch_nat_live(A_pool, mini_batch_size, patch_size, same_max_dist)
+%       get_twin_batch_nat_live(A_pool, mini_batch_size, patch_size, same_max_dist)
 %
 %   Cuts a balanced batch of FRESH near/far patch pairs from the pool of achromatic
 %   (A) source images. Each pair is cut at random coordinates from a randomly chosen
 %   image, so pairs effectively never repeat across training -- there is nothing for
 %   the network to memorize. This is the on-the-fly replacement for slicing a fixed,
-%   pre-stored pair array (as getTwinBatchPairs does for the Brodatz test set).
+%   pre-stored pair array (as get_twin_batch_pairs does for the Brodatz test set).
 %
 %   Note: this must NOT reseed the RNG. The offline generator (nat_near_far_patches_net)
 %   reseeds per image with rng(k) for reproducibility, but here we want every batch to
@@ -27,7 +27,7 @@ function [X1, X2, pair_labels] = getTwinBatch_nat_live( ...
 %                   moves the finished batch to the GPU.
 %     pair_labels - [1 x mini_batch_size], 1 = near/positive, 0 = far/negative.
 %
-%   See also FIND_NAT_PATCH, GETTWINBATCHPAIRS, LOAD_NAT_A_POOL
+%   See also FIND_NAT_PATCH, GET_TWIN_BATCH_PAIRS, LOAD_NAT_A_POOL
 
 n_img = numel(A_pool);
 
