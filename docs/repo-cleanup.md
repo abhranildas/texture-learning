@@ -2,17 +2,7 @@
 
 Style, then Tidying, then Structure, then Bugs, then Speed.
 
-Read every `.m` file in the repo and clean it in place — better names, complete header docs, consistent conventions, reflowed long lines. The first phase of this operation is **behaviour-preserving**: no output changes, a constraint that is **mechanically checkable**, so the diff does not need to be trusted, only verified. Five stages of change, defined fully in section 3:
-
-| Stage | Name | What it is | Status here |
-|---|---|---|---|
-| 1 | **Style** | The behaviour-preserving readability pass: names, docs, formatting. Mechanically checked. | complete |
-| 2 | **Tidying** | Four whitelisted small edits. Pattern-checked plus runtime golden output. | complete |
-| 3 | **Structure** | Structural cleanups the verified pass deferred. Reviewed individually. | 2 of 11 done |
-| 4 | **Bugs** | The bugs found along the way, fixed in severity order. | not started, 10 recorded |
-| 5 | **Speed** | The optimizations found along the way, each done only if a stopwatch says it worked. Last, and droppable. | not started; **the scan itself has not been run** |
-
-**Retrofit note (2026-09-15).** This plan was written against an earlier four-stage version of the `matlab-repo-cleanup` skill. Three things the skill has since added are folded in here: (a) function and file renaming as a Stage 1 tranche, now item 0.1.7; (b) named stages; (c) Stage 5, Speed, as a separate stage from Structure, with its own list in 0.5. Sections recording what already happened were not rewritten to pretend the new procedure was followed — where the old order differs, the log says so.
+Read every `.m` file in the repo and clean it in place — better names, complete header docs, consistent conventions, reflowed long lines. The first phase of this operation is **behaviour-preserving**: no output changes, a constraint that is **mechanically checkable**, so the diff does not need to be trusted, only verified. Five stages of change, defined fully in section 3; each one's own subsection below (0.1–0.5) opens with a one-line description of what it covers.
 
 ---
 
@@ -71,19 +61,19 @@ Coverage gaps found while extending the harness, and the two Stage 2 fixes made,
 
 Signature changes, merging duplicate functions, reordering statements — not part of the behaviour-preserving stage 1/2 pass, done afterward as the next step of the overall cleanup. Bug fixes (0.4) and optimizations (0.5) are their own stages, done after this one. An item here may make the code faster as a side effect, which does not make it a Speed item; what makes something a Speed item is that speed is the only reason to do it.
 
-Left unchecked until actually done. Full rationale in section 3.
+**Rating (retrofit, 2026-09-15).** Every item below now carries the same three-colour tier the skill uses for Bugs and Speed: 🔴 clear benefit for modest, well-understood effort and low risk; 🟠 worth doing but with a real cost — a genuine design decision or a large call-site surface; 🟡 marginal benefit, high effort/risk, or better deferred. It's a joint cost/benefit call, not a formula — the reasoning is one line per item below. **Item ids keep their original `0.3.<n>` numbers**, not the skill's `S<tier>.<n>` scheme, because three of them (`0.3.1`, `0.3.3`, `0.3.5`) are already done and referenced by that number in commit messages and the section 4.3 work log; renumbering would break that trail for no benefit on a list this short. Work order, tier-sorted per the skill's rule: 🔴 first (0.3.1 done, 0.3.5 done, 0.3.10 open — **0.3.10 is the only remaining 🔴, and the obvious next item**), then 🟠 (0.3.2, 0.3.3 done, 0.3.4, 0.3.7, 0.3.9), then 🟡 (0.3.6, 0.3.8, 0.3.11).
 
-- [x] **0.3.1.** Collapse the two copies of `local_show_pair`: extracted to `demo/local_show_pair.m`, both call sites (`demo/plot_stage3.m`, `demo/plot_stage6_pairs.m`) updated.
-- [ ] **0.3.2.** Collapse `experiments/adaptive_hist_exp.m`'s `collect_natural`/`collect_brodatz`
-- [x] **0.3.3.** Convert `pair_responses`' 10 positional arguments (or similar) into an `arguments` block — done: all ten validated by class/attribute, no defaults (MATLAB forbids an optional argument before a required one, and `cfg` is last and required), no reordering, no call-site change at any of the 6 invocations. Details in section 4.3.
-- [ ] **0.3.4.** Turn the three scripts (incl. `experiments/adaptive_hist_exp.m`) into functions
-- [x] **0.3.5.** Triage the commented-out code — done, one verdict per block, recorded in section 4.3, nothing deleted. Only **one** real block survives in the 66 in-scope files (`demo/plot_stage2.m:46`); the survey's "113 lines" was a loose heuristic dominated by header-doc usage examples, which do not count. Keeping is the default; the single conversion it licenses becomes item 0.3.10 below.
-- [ ] **0.3.6.** Reorder statements, even when it looks purely cosmetic
-- [ ] **0.3.7.** Rename any zone-2 `cfg.*` cross-file field (listed in section 4.1.1) — deferred to its own pass. Candidates already spotted, not touched: `cfg.gtr.szp`, `cfg.gtr.dcrit`, `cfg.gtr.n_regions` (comment still calls it `ntexr`), `cfg.natural.max_val`.
-- [ ] **0.3.8.** Rename any zone-3 frozen `save`/`load` name (listed in section 4.1.1)
-- [ ] **0.3.9.** `+segmentation/group_patches.m:112` discards `assign_isolated_patches`'s third output (`ngrps`) and recomputes group growth separately in the caller — two code paths compute the same count for the same event. De-duplicate, or confirm they can't diverge and say why. Not a bug as it stands; a divergence hazard.
-- [ ] **0.3.10.** Act on the 0.3.5 triage — one item, since the table has one row. Convert `demo/plot_stage2.m:46` (verdict row `stage2-pdf-ylim`, *alternative*) from commented-out code into plain prose in the same spot, keeping the reason and dropping the fake `ylim` call. Nothing to delete: no block was judged *superseded* or *scaffolding*.
-- [ ] **0.3.11.** `setup.m`'s `ensure_addon_on_path` guards an optional 5th argument that both call sites always pass — dead defensiveness, not a bug. Remove the guard or keep it deliberately.
+- [x] 🔴 **0.3.1.** Collapse the two copies of `local_show_pair`: extracted to `demo/local_show_pair.m`, both call sites (`demo/plot_stage3.m`, `demo/plot_stage6_pairs.m`) updated. *Obvious duplicate, two call sites, zero risk — the textbook 🔴.*
+- [ ] 🟠 **0.3.2.** Collapse `experiments/adaptive_hist_exp.m`'s `collect_natural`/`collect_brodatz`. *Real de-duplication value, but contained to one large exploratory file with no callers (section 4.1.2) — moderate benefit, not urgent.*
+- [x] 🟠 **0.3.3.** Convert `pair_responses`' 10 positional arguments (or similar) into an `arguments` block — done: all ten validated by class/attribute, no defaults (MATLAB forbids an optional argument before a required one, and `cfg` is last and required), no reordering, no call-site change at any of the 6 invocations. Details in section 4.3. *High-value shared function, but several genuine design decisions (validation scope, `cfg` as a whole struct, the `lo`/`hi` scope call) and a 6-call-site surface — the design-decision cost is what keeps this 🟠 rather than 🔴, even though it landed with zero risk.*
+- [ ] 🟠 **0.3.4.** Turn the three scripts (incl. `experiments/adaptive_hist_exp.m`) into functions. *Closes a real Stage 2 coverage gap (pattern-check-only tranches), but script-to-function conversion is a bigger, riskier surface than a plain rename — moderate benefit, moderate risk.*
+- [x] 🔴 **0.3.5.** Triage the commented-out code — done, one verdict per block, recorded in section 4.3, nothing deleted. Only **one** real block survives in the 66 in-scope files (`demo/plot_stage2.m:46`); the survey's "113 lines" was a loose heuristic dominated by header-doc usage examples, which do not count. Keeping is the default; the single conversion it licenses becomes item 0.3.10 below. *Pure reading, zero risk, and it closed a real uncertainty (the 113-line estimate) that the whole plan had been carrying — modest effort, clear benefit.*
+- [ ] 🟡 **0.3.6.** Reorder statements, even when it looks purely cosmetic. *No concrete instance identified yet — a category placeholder, not a finding. Stays 🟡 until a real target turns up; reordering also carries real correctness risk by the skill's own rationale (the check can't tell a safe reorder from an unsafe one).*
+- [ ] 🟠 **0.3.7.** Rename any zone-2 `cfg.*` cross-file field (listed in section 4.1.1) — deferred to its own pass. Candidates already spotted, not touched: `cfg.gtr.szp`, `cfg.gtr.dcrit`, `cfg.gtr.n_regions` (comment still calls it `ntexr`), `cfg.natural.max_val`. *Real consistency benefit, but touches `config.m` plus every reader — the call-site surface is the cost.*
+- [ ] 🟡 **0.3.8.** Rename any zone-3 frozen `save`/`load` name (listed in section 4.1.1). *The benefit is cosmetic naming consistency; the risk is breaking a shipped `.mat` artifact's contract. High risk for low benefit — candidate to drop rather than do.*
+- [ ] 🟠 **0.3.9.** `+segmentation/group_patches.m:112` discards `assign_isolated_patches`'s third output (`ngrps`) and recomputes group growth separately in the caller — two code paths compute the same count for the same event. De-duplicate, or confirm they can't diverge and say why. Not a bug as it stands; a divergence hazard. *Real correctness-adjacent benefit (closes a divergence hazard), contained to `+segmentation/`, but touches core segmentation logic and needs a golden-harness check — moderate cost.*
+- [x] 🔴 **0.3.10.** Act on the 0.3.5 triage — one item, since the table has one row. Convert `demo/plot_stage2.m:46` (verdict row `stage2-pdf-ylim`, *alternative*) from commented-out code into plain prose in the same spot, keeping the reason and dropping the fake `ylim` call. Nothing to delete: no block was judged *superseded* or *scaffolding*. *One line, in one file, verdict already licenses it — no design decision left, no risk. The other remaining 🔴.*
+- [ ] 🟡 **0.3.11.** `setup.m`'s `ensure_addon_on_path` guards an optional 5th argument that both call sites always pass — dead defensiveness, not a bug. Remove the guard or keep it deliberately. *Trivial effort and near-zero risk, but the benefit is genuinely marginal — a guard nobody exercises isn't causing harm either way.*
 
 **Moved out of this stage by the retrofit:** `twin-net/`'s camelCase file and top-level function names, which the Stage 1 step-4 log deferred here, are now Stage 1 item 0.1.7 — the skill treats them as mechanically checkable. Nothing else moved.
 
@@ -127,12 +117,12 @@ Stage 4's work log (section 4.4) fills in as each item here is actually fixed.
 
 Optimization candidates, recorded here as they're found and **never made at the time**. Done last, once the code is structurally settled and correct: optimizing wrong code can freeze wrong output into the golden reference, and a bug fix sometimes dissolves the optimization because the redundant work *was* the bug.
 
-Each item's id is `O<tier>.<n>`. The tier is not how much faster it would be — it is how much has to be true before the change can be trusted. ⚡ = tier 1, provably output-identical with no float or RNG order change. 🔀 = tier 2, a real speedup that perturbs float accumulation, RNG draw order, or `parfor` reduction order, so it needs an explicit tolerance decision before being done at all. 🔍 = tier 3, plausible but unprofiled and therefore **not implementable as recorded** — the profile either promotes it with a number attached or closes it.
+Each item's id is `O<tier>.<n>`. The tier is an overall risk/benefit call: 🔴 a large expected or measured win at low risk; 🟠 worth doing but with a real cost — a moderate gain, or a large one that perturbs float/RNG/`parfor` order and needs a tolerance decision first; 🟡 small, speculative, or unverified. Independent of tier, every item also carries a **verification status** — Proven (bit-identical), Perturbing (needs an agreed tolerance), or Unprofiled (no real measurement backs the benefit yet — **not implementable as recorded, whatever its tier**). Most items start Unprofiled; an Unprofiled item can still be tiered 🔴 if the potential payoff looks large on paper, since the tier is a priority call made with the information on hand, not proof the work is done.
 
 **This list is incomplete, and that is the first item.** The optimization scan (skill step 0) did not exist when this repo was surveyed, so section 1 has no performance-shape measurement. The two entries below are the only candidates the earlier passes happened to write down, both found via `checkcode` rather than by looking.
 
-- [ ] 🔍 **O3.1.** Run the optimization scan over all 66 in-scope files and fill in section 1's performance-shape bullet. Seven patterns to look for: loop-invariant work recomputed in a loop; file I/O (`load`/`imread`/`save`/`dir`/`exist`) inside a loop; `inv`/`pinv`/`det` where a solve would do; array growth beyond what Stage 2 covered; whole-array recomputation where an incremental update exists; plainly-elementwise loops and serial `parfor` candidates; `parfor` loops writing to a reduction variable. Every hit becomes a new item here. Pure reading, no execution, no edits.
-- [ ] 🔍 **O3.2.** `+segmentation/content_features.m:47` and `+segmentation/content_similarity_matrix.m:52` each carry a `checkcode` `parfor`-broadcast note — a variable copied to every worker rather than sliced. Recorded twice in section 4.2 as a "Stage 3 performance note" but never actually listed as an item until this retrofit. Unprofiled: both loops are the O(n²) all-pairs combine, so they are plausibly where the time goes, but nobody has measured it.
+- [ ] 🟡 **O3.1.** Run the optimization scan over all 66 in-scope files and fill in section 1's performance-shape bullet. Seven patterns to look for: loop-invariant work recomputed in a loop; file I/O (`load`/`imread`/`save`/`dir`/`exist`) inside a loop; `inv`/`pinv`/`det` where a solve would do; array growth beyond what Stage 2 covered; whole-array recomputation where an incremental update exists; plainly-elementwise loops and serial `parfor` candidates; `parfor` loops writing to a reduction variable. Every hit becomes a new item here. Pure reading, no execution, no edits. **Verification status: n/a** — this item is the scan itself, not a code change.
+- [ ] 🟡 **O3.2.** `+segmentation/content_features.m:47` and `+segmentation/content_similarity_matrix.m:52` each carry a `checkcode` `parfor`-broadcast note — a variable copied to every worker rather than sliced. Recorded twice in section 4.2 as a "Stage 3 performance note" but never actually listed as an item until this retrofit. **Verification status: Unprofiled.** Both loops are the O(n²) all-pairs combine, so the potential payoff is plausibly large — but nothing has been measured, and an unmeasured "plausibly large" is exactly the case the skill says stays 🟡 regardless of how big it looks on paper, rather than jumping to 🔴 on the strength of a guess.
 
 Worked in tier order. Every item needs a before timing, golden-output equality, and an after timing; **if the speedup isn't worth the diff, the change is reverted and the null result recorded** — that is a completed item, not a failure. Timing runs execute the real pipeline, so each one is asked for first.
 
@@ -164,7 +154,7 @@ Every number in this document was measured on the repo as it stands (MATLAB R202
 - **Names diverge across call boundaries** — e.g. `prep_grid` returns `[P, G, Gn]` but `content_features` receives the same three renamed `(P, G, E, …)`.
 - **Two naming conventions coexist**: the repo is snake_case except `twin-net/`, which is camelCase in both file and identifier names. The *identifiers* were converted in Stage 1 tranche 4; the **seven camelCase filenames remain** — `forwardTwin.m`, `getTwinBatchPairs.m`, `getTwinBatch_nat_live.m`, `load_nat_A_pool.m`, `modelLoss.m`, `poolStats.m`, `predictTwin.m`. Measured 2026-09-15 with `git ls-files '*.m' | grep '[A-Z]'`; the only other capitalized matches are the two `Contents.m` files, which are MATLAB's own required spelling and stay. Target is snake_case throughout — item 0.1.7, **now done**: six of the seven were renamed, and `load_nat_A_pool.m` stays as it is (the deliberate `A` exception, section 4.1.1b). Re-measured after the rename, `git ls-files '*.m' | grep '[A-Z]'` returns only `load_nat_A_pool.m` and the two `Contents.m` files.
 - **Performance shape: not measured.** The optimization scan did not exist when this survey was written, so there is no inventory here. Filling it in is item O3.1 in section 0.5. Known so far, both from `checkcode` rather than from looking: two `parfor`-broadcast notes (item O3.2).
-- **Timing data: almost none.** Exactly one timer in the in-scope code — `twin-net/train_net.m:269` (`start = tic;`), for per-iteration training progress, not for comparing stages. No logged runtimes, no note anywhere on which stage dominates wall-clock. Nobody knows where the time goes; it is unmeasured, not inferred from loop nesting. This is why every 0.5 item starts at 🔍.
+- **Timing data: almost none.** Exactly one timer in the in-scope code — `twin-net/train_net.m:269` (`start = tic;`), for per-iteration training progress, not for comparing stages. No logged runtimes, no note anywhere on which stage dominates wall-clock. Nobody knows where the time goes; it is unmeasured, not inferred from loop nesting. This is why every 0.5 item starts life Unprofiled.
 - **Three builtin shadows**: `image` used as a parameter name in three `+segmentation/` files.
 - **Commented-out code is present but small**: 113 of 5744 lines look like commented-out code. Nothing judged or removed here — that's the Stage 3 triage, item 0.3.5, whose per-block verdicts live in section 4.3.
 - **No `arguments` blocks, no `inputParser` anywhere.** Adding them is Stage 3.
@@ -228,9 +218,9 @@ Caveat: `mtree`/`tree2str` are undocumented MATLAB APIs — pin the MATLAB versi
 |---|---|---|---|---|
 | **1** | **Style** | Comments, header docs, whitespace, reflow, blank-line grouping, file-local renames, **function and file renames** | empty (after reverse rename) | `isequal` — fully automatic, no execution |
 | **2** | **Tidying** | Adding a suppressing `;`, preallocation, `find`→logical indexing, deleting a provably unused assignment — a closed list of four | non-empty but must match a whitelisted pattern | pattern check **plus** runtime golden output |
-| **3** | **Structure** | Signature changes, adding `arguments` blocks, merging duplicate functions, reordering statements, changing accumulation order in a float reduction, anything touching the RNG stream, **triaging commented-out code** | — | **not part of the behaviour-preserving pass** — reviewed and done individually, once stage 1/2 is done |
+| **3** | **Structure** | Signature changes, adding `arguments` blocks, merging duplicate functions, reordering statements, changing accumulation order in a float reduction, anything touching the RNG stream, **triaging commented-out code** — each item marked 🔴/🟠/🟡 | — | **not part of the behaviour-preserving pass** — reviewed and done individually, once stage 1/2 is done |
 | **4** | **Bugs** | Bug fixes found anywhere during stage 1/2/3, each marked 🔴/🟠/🟡 | — | not mechanically checkable — reviewed and fixed individually in severity order, once stage 3 is done |
-| **5** | **Speed** | Optimizations found anywhere, each marked ⚡/🔀/🔍 | — | golden-output equality **plus** a measured before/after timing on a real input; no measurement, no item. Done last, in tier order |
+| **5** | **Speed** | Optimizations found anywhere, each marked 🔴/🟠/🟡 | — | golden-output equality **plus** a measured before/after timing on a real input; no measurement, no item. Done last, in tier order |
 
 *Two notes on what actually happened here, versus the procedure as it now stands:*
 
@@ -242,6 +232,10 @@ Speed is its own stage rather than a corner of Structure because the verificatio
 Semicolon insertion is stage 2, not stage 1: `tree2str` preserves display-vs-suppress, so the canonical diff is exactly `X` → `X;` — trivially whitelisted, but not invisible.
 
 Stage 3 matters most. The tempting changes in this repo are all Stage 3 (see section 0.3's list). Every one of them changes output, call sites, or validation behaviour, so none of them belong in the behaviour-preserving pass — keeping them out is what makes that pass's diff skimmable instead of line-by-line. They are the next step of the same overall cleanup, not abandoned.
+
+**All three of Structure, Bugs, and Speed rate their items on the same three-colour scale** — 🔴 highest, 🟠 middle, 🟡 lowest — though what the tier means differs by list: how bad a bug is if left unfixed, versus overall cost/benefit for a structural item, versus overall risk/benefit for an optimization. See sections 0.3, 0.4, and 0.5.
+
+When the pass uncovers a *structural opportunity* — and it will — **record it in 0.3 with its tier emoji and do not make the change**, the same discipline as a bug or an optimization.
 
 When the pass uncovers an *optimization* — and it will — **record it in 0.5 with its tier emoji and do not make it**, however small it looks. The "easy" one spotted mid-tranche is the likeliest way this rule gets broken.
 
@@ -624,6 +618,24 @@ Notable, and worth the user's attention: section 1 measured **113 of 5744 lines*
 
 ---
 
+**Item 0.3.10 — convert the `stage2-pdf-ylim` block in `demo/plot_stage2.m`.** Done 2026-09-15. Re-located by name, not by line number: the block was still exactly where the 0.3.5 triage found it, at `demo/plot_stage2.m:46`, inside the local function `plot_feature`, between `set(gca, 'YTick', [])` (line 45) and `trunc_xlim(e, N)` (line 47).
+
+The surrounding code said this block was a display parameter the author tried and switched away from: the live code fixes the x-range and hides the y-ticks but never constrains the y-range, and the comment recorded why (`pdf = diff([0, N])` is a per-bin probability mass whose peak varies by feature and bin width, so a fixed `ylim([0 1])` doesn't hold in general).
+
+Verdict from 0.3.5: *alternative*. Action per that verdict: keep the reason, convert to prose, drop the fake `ylim` call — not a delete, since no block here was judged *superseded* or *scaffolding*.
+
+Changed:
+```matlab
+% before
+        % ylim([0 1]); % Removed ylim because PDF can exceed 1 or have a different scale
+% after
+        % No y-limit: the per-bin PDF can exceed 1, and its scale differs per feature.
+```
+
+Verified by diff review only (the plan's own note: this is a comment-only edit, no executable code touched, so `check_stage1`/AST checks don't apply and aren't meaningful here). Confirmed the diff touches exactly this one line in this one file, nothing else.
+
+---
+
 **Item 0.3.3 — `arguments` block for `pipeline/pair_responses.m`.** Done 2026-09-15, MATLAB R2024b. The item was re-located by name, not by line number, and is still accurate: the function still had the same ten positional arguments and no validation of any kind.
 
 The block, placed after the header comment and before the first statement:
@@ -761,9 +773,9 @@ Bugs discovered while doing stage 1/2/3 are recorded in section 0.4 as they're f
 
 <div style="margin-left:1.5em">
 
-One entry per section 0.5 item, filled in as it's measured. Each entry carries all of: the re-triage verdict (does the item still exist after stages 3 and 4, or did a structural change or bug fix already dissolve it), the **before** timing with input size and repeat count, the golden-output result (bit-identical for ⚡, inside the agreed tolerance for 🔀, tolerance quoted), and the **after** timing on the same input and repeats.
+One entry per section 0.5 item, filled in as it's measured. Each entry carries all of: the re-triage verdict (does the item still exist after stages 3 and 4, or did a structural change or bug fix already dissolve it), the **before** timing with input size and repeat count, the golden-output result (bit-identical for a Proven item, inside the agreed tolerance for a Perturbing item, tolerance quoted), and the **after** timing on the same input and repeats.
 
-**A measured null result is a completed item.** If the speedup didn't justify the diff, the change was reverted — log the numbers that said so. For a 🔍 item the profile *is* the item: log where the time actually went, then re-file it as ⚡/🔀 with a number attached, or close it here.
+**A measured null result is a completed item.** If the speedup didn't justify the diff, the change was reverted — log the numbers that said so. For an item still marked Unprofiled, the profile *is* the item: log where the time actually went, then update its status to Proven or Perturbing with a number attached (re-tiering if the measurement changes the priority call), or close it here.
 
 Timing and profiling runs execute the real pipeline, so they fall outside the standing headless-MATLAB authorization — each one is asked for first, with its wall-clock cost stated.
 

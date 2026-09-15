@@ -43,7 +43,7 @@ function plot_stage2(cfg, ecc)
         pdf = diff([0, N]); % PDF from CDF
         plot(e(1:end-1), pdf, 'LineWidth', 2); hold on;
         set(gca, 'YTick', []); % Remove y-axis ticks for PDF plots
-        % ylim([0 1]); % Removed ylim because PDF can exceed 1 or have a different scale
+        % No y-limit: the per-bin PDF can exceed 1, and its scale differs per feature.
         trunc_xlim(e, N);
         if has_bins && ~isempty(S.bin_bounds{dim, ecc_idx})
             bnds = S.bin_bounds{dim, ecc_idx};
