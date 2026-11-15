@@ -3,8 +3,8 @@ function plot_stage3(cfg, ecc)
 %   plot_stage3(cfg, ecc)
 %
 %   Full mode shows the built pairs (patch_pairs_ecc<ecc>.mat) if they match the
-%   requested cfg.features.color; otherwise (quick mode, or a stale file left over
-%   from a run in the other colour mode) it samples a few fresh via sample_demo_pairs
+%   requested colour and optics settings; otherwise (quick mode, or a stale file left
+%   over from a run in the other mode) it samples a few fresh via sample_demo_pairs
 %   (same optics/domain/distance rules as Stage 3). Both branches yield pair tensors
 %   (achromatic-only or ABR colour, depending on cfg.features.color), displayed
 %   identically.
@@ -15,15 +15,10 @@ function plot_stage3(cfg, ecc)
 % Output
 %   none (draws the figure)
 %
-% See also SAMPLE_DEMO_PAIRS, PATCH_TO_RGB_DISPLAY, PLOT_STAGE6_PAIRS
-    out_path = fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc));
+% See also SAMPLE_DEMO_PAIRS, LOCAL_SHOW_PAIR, PLOT_STAGE6_PAIRS
     n_show = 5;
 
-    pair_data_ok = false;
-    if isfile(out_path)
-        pair_data = load(out_path, 'ptchn', 'ptchf', 'color');
-        pair_data_ok = isfield(pair_data, 'color') && isequal(pair_data.color, cfg.features.color);
-    end
+    [pair_data, pair_data_ok] = load_patch_pairs(cfg, ecc);
     if pair_data_ok
         ptchn = pair_data.ptchn;  ptchf = pair_data.ptchf;
     else
@@ -49,16 +44,4 @@ function plot_stage3(cfg, ecc)
             ptchf(:, patch_size+1:2*patch_size, :, i));
         if i == 1, title('Far Pairs'); end
     end
-end
-
-% ------------------------------------------------------------------------------
-function local_show_pair(cfg, a, b)
-% Display a patch pair side by side (2-px gap), normalized/gamma-mapped for
-% display JOINTLY (patch_to_rgb_display sees both halves at once) so the two
-% halves stay comparable in brightness, not each independently rescaled. Patches
-% are ABR-space (or achromatic-only) -- see patch_to_rgb_display.
-    patch_size = size(a, 2);
-    rgb = patch_to_rgb_display(cfg, cat(2, a, b), 'abr');
-    gap = zeros(size(rgb, 1), 2, 3);
-    image([rgb(:, 1:patch_size, :), gap, rgb(:, patch_size+1:end, :)]); axis image off;
 end

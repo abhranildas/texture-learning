@@ -74,7 +74,7 @@ function out = s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)
         [pimg, px, py] = make_gtr_image(cfg, imgr, imgg, imgb, texs(trl,:), maps(:,:,trl));
         phiall = segmentation.content_similarity_matrix(pimg, size(pimg,1)/cfg.gtr.szp, ...
             px, py, bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
-        rho = segmentation.mutual_similarity(phiall);
+        rho = segmentation.mutual_similarity(phiall, cfg.bill_compat);
         R = neighbor_far_responses(cfg, pimg, rho, maps(:,:,trl), bin_bounds, n_bins, dv);
 
         % per-image self-supervised step -> combined near/far decision variables qbs/qbd

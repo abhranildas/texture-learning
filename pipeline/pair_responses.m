@@ -20,10 +20,9 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
 %   callers can re-align per-pair ground truth or images (e.g. plot_stage6_pairs).
 %
 %   `patches` are pairs already normalized + LMS->ABR-rotated (by sample_nearfar_pairs
-%   / sample_demo_pairs / sample_texture_pairs) -- read here AS-IS, with no further
-%   patch_to_a/patch_to_abr call. Those functions' contract is "3-channel input is
-%   raw LMS, normalize + rotate it"; calling them again on an already-rotated ABR
-%   array would silently re-normalize and re-rotate it.
+%   / sample_demo_pairs / sample_texture_pairs, via pair_patch_prep) -- read here
+%   AS-IS, with no further normalize + rotate step; repeating it on an
+%   already-rotated ABR array would silently re-normalize and re-rotate it.
 %
 %   Inputs
 %     patches        - [patch_size x 2*patch_size x nch x n_pairs] pair tensor (see

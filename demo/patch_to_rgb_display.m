@@ -5,7 +5,7 @@ function rgb = patch_to_rgb_display(cfg, patch, space)
 %   transforms, just a visualization.
 %
 %   Inputs
-%     cfg   - config struct (cfg.paths.data_root, cfg.optics.apply).
+%     cfg   - config struct (cfg.paths.data_root, cfg.color_rotation).
 %     patch - [H x W x nch]: nch=1 achromatic-only (displayed as grayscale,
 %             replicated to 3 channels so the output shape is always the same);
 %             nch=3 colour, in the space given by SPACE.
@@ -14,10 +14,16 @@ function rgb = patch_to_rgb_display(cfg, patch, space)
 %             'lms' -- GTR/natural images (make_gtr_image/source_to_lms store LMS,
 %                       not yet rotated; see pipeline/neighbor_far_responses.m).
 %             Ignored when nch=1.
+%   In achromatic mode (cfg.features.color false) an 'lms' image is shown as its
+%   rotated A channel, the only channel the model segments, not in its true colour.
 %   Output
 %     rgb - [H x W x 3] in [0,1], gamma-corrected for on-screen display.
 %
 % See also PLOT_STAGE3, PLOT_STAGE6_PAIRS, PLOT_STAGE7, PLOT_STAGE8_NATURAL
+    if size(patch, 3) == 3 && strcmp(space, 'lms') && ~cfg.features.color
+        patch = vislab.nat_stat_bayes.apply_color_rotation(patch, cfg.color_rotation);
+        patch = patch(:, :, 1);
+    end
     if size(patch, 3) == 1
         gray_img = double(patch) - min(patch(:));
         gray_img = gray_img / max(eps, max(gray_img(:)));
@@ -29,9 +35,7 @@ function rgb = patch_to_rgb_display(cfg, patch, space)
     [h, w, ~] = size(patch);
     switch space
         case 'abr'
-            if cfg.optics.apply, fname = 'cps_lms2abr_otf.mat'; else, fname = 'cps_lms2abr.mat'; end
-            coeff_data = load(fullfile(cfg.paths.data_root, fname), 'coeff');
-            lms_rows = reshape(patch, h*w, 3) / coeff_data.coeff;   % invert the LMS->ABR rotation
+            lms_rows = reshape(patch, h*w, 3) / cfg.color_rotation;   % invert the LMS->ABR rotation
         case 'lms'
             lms_rows = reshape(patch, h*w, 3);
         otherwise

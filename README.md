@@ -80,9 +80,9 @@ images and write artifacts to `data/models/`; stages 6–7 apply/evaluate it on 
 | 1 | `s1_learn_color_transform(cfg)` | `vislab-common/data/cps_lms2abr_otf.mat` — LMS→ABR colour rotation (lab-shared) |
 | 2+3 | `s23_learn_priors_and_pairs(cfg, ecc)` | `priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat` (per-ecc natural feature priors) + `patch_pairs_ecc<ecc>.mat` (near/far training pairs), in one pass over the images |
 | 4 | `s4_optimize_bins(cfg, dim, ecc)` | `AHEO<btype><dim><ecc>.mat` — adaptive histogram bins |
-| 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>.mat` (achromatic) or `decision_bounds_ecc_<ecc>_color.mat` (colour) — trained decision-variable bounds |
+| 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>[_color][_otf].mat` (`_color` for the colour model, `_otf` when trained with the eye optics) — trained decision-variable bounds |
 | 6 | `s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)` | per-image self-supervised discrimination accuracy surfaces (runs on GTR images built from Brodatz/Fabric source textures — see Quick demo) |
-| 7 | `s7_segment_gtr(cfg, method, itype, ecc, n_images)` | GTR segmentation: correct-region counts over the merge x grouping-offset grid |
+| 7 | `s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)` | chooses the fixed grouping parameters (offset, merge) by segmenting many GTR images; optionally saves `segmentation_params[_otf].mat`, loaded by `config` as `cfg.segment` |
 
 Stages 4-5 (and everything downstream) key off `cfg.features.dv_dims`/`spot_dims`, which
 `config.m` derives from `cfg.features.color` — see Colour extension below.
@@ -105,12 +105,21 @@ in `run_demo` — controls this:
 Turning colour on is the one thing that costs more: patch pairs are then stored as full 3-channel
 (LMS/ABR) patches instead of 1-channel achromatic patches, so `patch_pairs_ecc<ecc>.mat` is larger
 on disk and in memory. Everything else (priors, bins, bounds, segmentation) scales the same either
-way. Colour and achromatic models ship as separate `decision_bounds_ecc_<ecc>[_color].mat` files
+way. Colour and achromatic models ship as separate `decision_bounds_ecc_<ecc>[_color]_otf.mat` files
 (`dbnd.h` means something different in each mode, so they cannot share a filename) — both are
 shipped in `data/models/` alongside the shared, mode-independent priors and bins files. `run_demo`
 asks whether to include colour in both modes: `full` trains whichever mode you choose from
 scratch; `quick` runs whichever mode's file is shipped, falling back (with a notice) to whichever
 one actually is if the requested one isn't.
+
+**Eye optics.** `config(color, optics)` with `optics = false` turns the eye-optics filter off for
+training (stages 1-5, natural images) and testing (stages 6-7, texture and GTR images) alike. Each
+trained file records the setting in its name (`_otf`; `AHEO_`/`AHE_` for the bins), so both models
+can sit side by side in `data/models/`, and stages 4-5 refuse patch pairs built with the other
+setting. Only the optics-on model is shipped. `run_demo` sets it at the top (`optics = true`).
+A third input, `config(color, optics, test_optics)`, filters the test images differently from the
+model's training images (e.g. the optics-trained model on unfiltered GTR images); it defaults to
+`optics`.
 
 Full design rationale, the data-file layout, and implementation notes: `docs/color-extension-plan.md`.
 
@@ -140,7 +149,7 @@ Here is a simple breakdown of the data files you'll encounter:
 - **`priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat`**: The natural marginal probability distributions (priors) for the model's low-level image features, learned per eccentricity (ecc applies blur + downsampling, which changes the feature statistics).
 - **`patch_pairs_ecc<ecc>.mat`**: Large datasets of *near* (likely same texture) and *far* (likely different texture) patch pairs, extracted directly from unlabelled natural images to train the model. Stores 1-channel achromatic patches or 3-channel colour (LMS/ABR) patches depending on `cfg.features.color` (see Colour extension above); a `color` flag in the file records which, and the pipeline errors loudly if it doesn't match `cfg`.
 - **`AHEO<btype><dim><ecc>.mat`**: Adaptive histogram bin boundaries used for discretizing the feature responses.
-- **`decision_bounds_ecc_<ecc>.mat`** (achromatic) / **`decision_bounds_ecc_<ecc>_color.mat`** (colour): The final trained quadratic decision boundaries for determining whether two patches belong to the same or different textures. The achromatic file stores one spot bound; the colour file additionally stores the achromatic/chromatic sub-bounds it combines (see Colour extension above).
+- **`decision_bounds_ecc_<ecc>_otf.mat`** (achromatic) / **`decision_bounds_ecc_<ecc>_color_otf.mat`** (colour): The final trained quadratic decision boundaries for determining whether two patches belong to the same or different textures. The achromatic file stores one spot bound; the colour file additionally stores the achromatic/chromatic sub-bounds it combines (see Colour extension above).
 
 *(Note: `<ecc>` refers to the spatial eccentricity-related downsampling factor of the patches, typically 1, 2, 4, or 8).*
 

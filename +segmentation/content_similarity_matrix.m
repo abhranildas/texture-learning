@@ -29,7 +29,7 @@ function phi = content_similarity_matrix(region_image, patch_size, patch_x, patc
 
     n = numel(patch_x);
     spot_dims = cfg.features.spot_dims;     % [1 13 14]
-    edge_dims = cfg.features.edge_dv_dims;  % [5 9 10]
+    edge_dims = cfg.features.edge_dv_dims;  % [5 9 10 11]
     power_suppress = cfg.dv.power_suppress;
 
     % prep every patch once (extract + normalize + rotate; raw and contrast-norm gray)

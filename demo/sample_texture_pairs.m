@@ -22,14 +22,7 @@ function [ptch, same_gt] = sample_texture_pairs(cfg, ecc, npairs, itype)
 % See also LOAD_TEXTURE_IMAGES, PLOT_STAGE6_PAIRS
     if nargin < 4 || isempty(itype), itype = 3; end
     patch_size = cfg.patch.size / ecc;
-    target_mean = cfg.norm.target_mean;
-    target_contrast = cfg.norm.target_contrast;
-
-    if cfg.features.color
-        nch = 3;  prep = @(p) vislab.nat_stat_bayes.patch_to_abr(p, target_mean, target_contrast);
-    else
-        nch = 1;  prep = @(p) vislab.nat_stat_bayes.patch_to_a(p, target_mean, target_contrast);
-    end
+    [prep, nch] = pair_patch_prep(cfg);
 
     [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc);
     sheet_size = size(imgr, 1);

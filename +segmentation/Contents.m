@@ -13,6 +13,9 @@
 %     neighbor_similarity_matrix - border+content similarity for neighbouring patch pairs
 %     mutual_similarity          - cosine similarity between patches' content-similarity
 %                                  vectors (paper: u_ij)
+%     learn_image_similarity     - one image's similarities, self-supervised grouping
+%                                  criterion/weight, and combined neighbour similarity
+%     segment_image              - segment one GTR image at fixed grouping parameters
 %     group_patches              - segment patches by local-similarity, transitive,
 %                                  isolated, and region grouping
 %     merge_similar_regions      - merge the single most-similar pair of touching regions

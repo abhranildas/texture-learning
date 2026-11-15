@@ -42,13 +42,7 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
     % --- load priors and patch pairs ONCE for all dims ---
     priors = load(fullfile(cfg.paths.models, prior_filename(cfg, ecc)));
 
-    pp = load(fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc)), ...
-        'ptchn', 'ptchf', 'color');
-    if ~isfield(pp, 'color') || pp.color ~= cfg.features.color
-        error('s4_optimize_bins:pairsModeMismatch', ...
-        'patch_pairs_ecc%d.mat does not match cfg.features.color=%d -- rerun s23_learn_priors_and_pairs.', ...
-            ecc, cfg.features.color);
-    end
+    pp = load_patch_pairs(cfg, ecc);      % errors if built for another colour/optics mode
     ptchn = pp.ptchn;
     ptchf = pp.ptchf;
 
@@ -194,7 +188,7 @@ function [Va, Vb] = feature_values(patches, dim, patch_size, cfg)
     Vb = cell(n_pairs, 1);
     for i = 1:n_pairs
         % patches are already normalized + LMS->ABR-rotated pairs; read as-is (see
-        % pair_responses.m for why no patch_to_a/patch_to_abr call belongs here).
+        % pair_responses.m for why no normalize + rotate step belongs here).
         p1 = patches(1:patch_size, 1:patch_size, :, i);
         p2 = patches(1:patch_size, patch_size+1:2*patch_size, :, i);
         if is_edge

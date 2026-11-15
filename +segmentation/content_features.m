@@ -20,7 +20,7 @@ function patch_features = content_features(patches, achrom, edge_channel, patch_
 %     patch_size   - patch size in pixels.
 %     bin_bounds, n_bins - histogram bin edges / counts (load_bin_bounds).
 %     spot_dims    - spot feature dims to histogram (cfg.features.spot_dims, e.g. [1 13 14]).
-%     edge_dims    - edge feature dims to histogram (cfg.features.edge_dv_dims, e.g. [5 9 10]).
+%     edge_dims    - edge feature dims to histogram (cfg.features.edge_dv_dims, e.g. [5 9 10 11]).
 %     cfg          - config struct (edge threshold + steerable kernel widths).
 %
 %   Output

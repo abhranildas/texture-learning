@@ -20,7 +20,7 @@ function plot_stage6_pairs(cfg, ecc)
 % Output
 %   none (draws the figure; prints the same-different accuracy to stdout)
 %
-% See also PLOT_STAGE3, PAIR_RESPONSES, LOAD_DV_HANDLES, SAMPLE_TEXTURE_PAIRS
+% See also PLOT_STAGE3, LOCAL_SHOW_PAIR, PAIR_RESPONSES, LOAD_DV_HANDLES, SAMPLE_TEXTURE_PAIRS
     n_show         = 10;
     btype          = 5;
     power_suppress = cfg.dv.power_suppress;
@@ -88,17 +88,6 @@ function plot_stage6_pairs(cfg, ecc)
 end
 
 % ------------------------------------------------------------------------------
-function local_show_pair(cfg, a, b)
-% Display a patch pair side by side (2-px gap), normalized/gamma-mapped for
-% display JOINTLY (patch_to_rgb_display sees both halves at once) so the two
-% halves stay comparable in brightness, not each independently rescaled. Patches
-% are ABR-space (or achromatic-only) -- see patch_to_rgb_display.
-    patch_size = size(a, 2);
-    rgb = patch_to_rgb_display(cfg, cat(2, a, b), 'abr');
-    gap = zeros(size(rgb, 1), 2, 3);
-    image([rgb(:, 1:patch_size, :), gap, rgb(:, patch_size+1:end, :)]); axis image off;
-end
-
 function s = ternary(cond, a, b)
     if cond, s = a; else, s = b; end
 end

@@ -1,22 +1,23 @@
-# Repo-wide cleanup plan
+# Repo-wide cleanup plan: texture-learning
 
-Style, then Tidying, then Structure, then Bugs, then Speed.
-
-Read every `.m` file in the repo and clean it in place — better names, complete header docs, consistent conventions, reflowed long lines. The first phase of this operation is **behaviour-preserving**: no output changes, a constraint that is **mechanically checkable**, so the diff does not need to be trusted, only verified. Five stages of change, defined fully in section 3; each one's own subsection below (0.1–0.5) opens with a one-line description of what it covers.
+- ✅ done
+- ☑️ provisionally done (every 🔴 item done)
+- 🚧 in progress
+- ⬜ not started
 
 ---
 
-<details>
+<details open>
 <summary><h2 style="display:inline; margin:0; font-size:1.15em">0. Status</h2></summary>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">0.1 Stage 1, Style — complete</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">✅ 0.1 · Stage 1 · Style</h3></summary>
 
 <div style="margin-left:1.5em">
 
-Comments, header docs, whitespace, reflow, file-local renames, and function/file renames. Checked by `isequal` on a canonical AST fingerprint — no execution needed.
+**Description.** Comments, header docs, whitespace, reflow, blank-line grouping, file-local renames, and function/file renames. Checked by `isequal` on a canonical AST fingerprint — no execution needed.
 
-All 66 in-scope files cleaned, one commit per tranche on `main`. The last tranche to land was the one the 2026-09-15 retrofit added: the skill now puts function and file renaming in Stage 1 (it is mechanically checkable, since a function name is a bare identifier the reverse-rename regex covers), and this repo had six camelCase filenames that the original pass explicitly deferred. That was item 0.1.7, now done — findings in section 4.1.3, step 7.
+**To-do.**
 
 - [x] **0.1.0.** Tooling: `canon`/`check_stage1`/`assert_rename_bijection`, golden-output harness.
 - [x] **0.1.1.** `+segmentation/` + `+gtr/`
@@ -25,72 +26,68 @@ All 66 in-scope files cleaned, one commit per tranche on `main`. The last tranch
 - [x] **0.1.4.** `twin-net/`
 - [x] **0.1.5.** Root: `config.m`, `setup.m`, `run_demo.m`
 - [x] **0.1.6.** `experiments/adaptive_hist_exp.m`
-- [x] **0.1.7.** **Function and file renames, repo-wide** — the six renamed camelCase filenames in `twin-net/` (`load_nat_A_pool.m`, the seventh camelCase-ish name, is a deliberate keep), their `function` lines, and every call site. Map and method in section 4.1.1b. Runs as one tranche over the whole repo, verified file by file with `check_stage1` against `git show HEAD:<file>`. Out of order relative to the skill (which puts this *before* the other tranches, so headers never name a file that later moves) — here it lands after, so its own sweep must also fix the `See also` lines and `Contents.m` entries Stage 1 already wrote.
-
-Full detail, tranche sequencing, and per-tranche findings: section 4.1.
+- [x] **0.1.7.** **Function and file renames, repo-wide** — the six renamed camelCase filenames in `twin-net/` (`load_nat_A_pool.m`, the seventh camelCase-ish name, is a deliberate keep), their `function` lines, and every call site. Map and method in section 3.1.1b. Runs as one tranche over the whole repo, verified file by file with `check_stage1` against `git show HEAD:<file>`. Out of order relative to the skill (which puts this *before* the other tranches, so headers never name a file that later moves) — here it lands after, so its own sweep must also fix the `See also` lines and `Contents.m` entries Stage 1 already wrote.
 
 </div>
 
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">0.2 Stage 2, Tidying — complete</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">✅ 0.2 · Stage 2 · Hygiene</h3></summary>
 
 <div style="margin-left:1.5em">
 
-Semicolon insertion, preallocation, `find`→logical indexing, deleting a provably unused assignment. Checked by a whitelisted-pattern diff **plus** a runtime golden-output match. A closed list of four: anything bigger is a Speed item (0.5), not a widening of this stage.
+**Description.** Semicolon insertion, preallocation, `find`→logical indexing, deleting a provably unused assignment. Checked by a whitelisted-pattern diff **plus** a runtime golden-output match. A closed list of four: anything bigger is a Speed item (0.5), not a widening of this stage.
+
+**To-do.**
 
 - [x] **0.2.0.** Extend the golden harness. `tools/golden_harness.m` now covers all tranches except one script. Entry points added this round: `+gtr/` (`grow_region_masks`, `sample_texture_ids`), `demo/` (`sample_texture_pairs`, `apply_dv`; `compute_demo_responses` already covered via `pair_responses`), `twin-net/` (`forward_twin`, `predict_twin`, `pool_stats` — named `forwardTwin`/`predictTwin`/`poolStats` at the time, renamed by tranche 0.1.7 — on a tiny synthetic `dlnetwork`). Captured and replay-verified.
-- [x] **0.2.1.** `+segmentation/` + `+gtr/` — no Stage 2 opportunities found (see section 4.2).
-- [x] **0.2.2.** `pipeline/` — one fix, `list_natural_images.m` (see section 4.2).
-- [x] **0.2.3.** `demo/` — no Stage 2 opportunities found (see section 4.2).
-- [x] **0.2.4.** `twin-net/` — one fix, `texture_same_diff_patches_net.m`; one deliberate non-suppressed line left alone and commented (see section 4.2).
-- [x] **0.2.5.** Root: `config.m`, `setup.m`, `run_demo.m` — one trivial Stage-1-level cleanup in `setup.m` found along the way (see section 4.2); no genuine Stage 2 target in any of the three.
-- [x] **0.2.6.** `experiments/adaptive_hist_exp.m` — no Stage 2 opportunities found (pattern-check only; see section 4.2).
-
-Coverage gaps found while extending the harness, and the two Stage 2 fixes made, are detailed in section 4.2.
+- [x] **0.2.1.** `+segmentation/` + `+gtr/` — no Stage 2 opportunities found (see section 3.2).
+- [x] **0.2.2.** `pipeline/` — one fix, `list_natural_images.m` (see section 3.2).
+- [x] **0.2.3.** `demo/` — no Stage 2 opportunities found (see section 3.2).
+- [x] **0.2.4.** `twin-net/` — one fix, `texture_same_diff_patches_net.m`; one deliberate non-suppressed line left alone and commented (see section 3.2).
+- [x] **0.2.5.** Root: `config.m`, `setup.m`, `run_demo.m` — one trivial Stage-1-level cleanup in `setup.m` found along the way (see section 3.2); no genuine Stage 2 target in any of the three.
+- [x] **0.2.6.** `experiments/adaptive_hist_exp.m` — no Stage 2 opportunities found (pattern-check only; see section 3.2).
 
 </div>
 
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">0.3 Stage 3, Structure — done after the readability pass</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">☑️ 0.3 · Stage 3 · Organize</h3></summary>
 
 <div style="margin-left:1.5em">
 
-Signature changes, merging duplicate functions, reordering statements — not part of the behaviour-preserving stage 1/2 pass, done afterward as the next step of the overall cleanup. Bug fixes (0.4) and optimizations (0.5) are their own stages, done after this one. An item here may make the code faster as a side effect, which does not make it a Speed item; what makes something a Speed item is that speed is the only reason to do it.
+**Description.** Signature changes, `arguments` blocks, merging duplicate functions, reordering statements, float/RNG-order changes, commented-out-code triage — not behaviour-preserving, done after Stage 1/2, and not Bugs (0.4) or Speed (0.5) even if a fix here happens to speed something up. **Rating:** 🔴 clear win, low risk · 🟠 real cost (design decision or wide call-site surface) · 🟡 marginal, defer — a joint call, not a formula. Ids stay `0.3.<n>` (already cited in commits and the section 3.3 work log), not the skill's `O<tier>.<n>`.
 
-**Rating (retrofit, 2026-09-15).** Every item below now carries the same three-colour tier the skill uses for Bugs and Speed: 🔴 clear benefit for modest, well-understood effort and low risk; 🟠 worth doing but with a real cost — a genuine design decision or a large call-site surface; 🟡 marginal benefit, high effort/risk, or better deferred. It's a joint cost/benefit call, not a formula — the reasoning is one line per item below. **Item ids keep their original `0.3.<n>` numbers**, not the skill's `S<tier>.<n>` scheme, because three of them (`0.3.1`, `0.3.3`, `0.3.5`) are already done and referenced by that number in commit messages and the section 4.3 work log; renumbering would break that trail for no benefit on a list this short. Work order, tier-sorted per the skill's rule: 🔴 first (0.3.1 done, 0.3.5 done, 0.3.10 open — **0.3.10 is the only remaining 🔴, and the obvious next item**), then 🟠 (0.3.2, 0.3.3 done, 0.3.4, 0.3.7, 0.3.9), then 🟡 (0.3.6, 0.3.8, 0.3.11).
+**To-do.**
 
 - [x] 🔴 **0.3.1.** Collapse the two copies of `local_show_pair`: extracted to `demo/local_show_pair.m`, both call sites (`demo/plot_stage3.m`, `demo/plot_stage6_pairs.m`) updated. *Obvious duplicate, two call sites, zero risk — the textbook 🔴.*
-- [ ] 🟠 **0.3.2.** Collapse `experiments/adaptive_hist_exp.m`'s `collect_natural`/`collect_brodatz`. *Real de-duplication value, but contained to one large exploratory file with no callers (section 4.1.2) — moderate benefit, not urgent.*
-- [x] 🟠 **0.3.3.** Convert `pair_responses`' 10 positional arguments (or similar) into an `arguments` block — done: all ten validated by class/attribute, no defaults (MATLAB forbids an optional argument before a required one, and `cfg` is last and required), no reordering, no call-site change at any of the 6 invocations. Details in section 4.3. *High-value shared function, but several genuine design decisions (validation scope, `cfg` as a whole struct, the `lo`/`hi` scope call) and a 6-call-site surface — the design-decision cost is what keeps this 🟠 rather than 🔴, even though it landed with zero risk.*
+- [ ] 🟠 **0.3.2.** Collapse `experiments/adaptive_hist_exp.m`'s `collect_natural`/`collect_brodatz`. *Real de-duplication value, but contained to one large exploratory file with no callers (section 3.1.2) — moderate benefit, not urgent.*
+- [x] 🟠 **0.3.3.** Convert `pair_responses`' 10 positional arguments (or similar) into an `arguments` block — done: all ten validated by class/attribute, no defaults (MATLAB forbids an optional argument before a required one, and `cfg` is last and required), no reordering, no call-site change at any of the 6 invocations. Details in section 3.3. *High-value shared function, but several genuine design decisions (validation scope, `cfg` as a whole struct, the `lo`/`hi` scope call) and a 6-call-site surface — the design-decision cost is what keeps this 🟠 rather than 🔴, even though it landed with zero risk.*
 - [ ] 🟠 **0.3.4.** Turn the three scripts (incl. `experiments/adaptive_hist_exp.m`) into functions. *Closes a real Stage 2 coverage gap (pattern-check-only tranches), but script-to-function conversion is a bigger, riskier surface than a plain rename — moderate benefit, moderate risk.*
-- [x] 🔴 **0.3.5.** Triage the commented-out code — done, one verdict per block, recorded in section 4.3, nothing deleted. Only **one** real block survives in the 66 in-scope files (`demo/plot_stage2.m:46`); the survey's "113 lines" was a loose heuristic dominated by header-doc usage examples, which do not count. Keeping is the default; the single conversion it licenses becomes item 0.3.10 below. *Pure reading, zero risk, and it closed a real uncertainty (the 113-line estimate) that the whole plan had been carrying — modest effort, clear benefit.*
+- [x] 🔴 **0.3.5.** Triage the commented-out code — done, one verdict per block, recorded in section 3.3, nothing deleted. Only **one** real block survives in the 66 in-scope files (`demo/plot_stage2.m:46`); the survey's "113 lines" was a loose heuristic dominated by header-doc usage examples, which do not count. Keeping is the default; the single conversion it licenses becomes item 0.3.10 below. *Pure reading, zero risk, and it closed a real uncertainty (the 113-line estimate) that the whole plan had been carrying — modest effort, clear benefit.*
 - [ ] 🟡 **0.3.6.** Reorder statements, even when it looks purely cosmetic. *No concrete instance identified yet — a category placeholder, not a finding. Stays 🟡 until a real target turns up; reordering also carries real correctness risk by the skill's own rationale (the check can't tell a safe reorder from an unsafe one).*
-- [ ] 🟠 **0.3.7.** Rename any zone-2 `cfg.*` cross-file field (listed in section 4.1.1) — deferred to its own pass. Candidates already spotted, not touched: `cfg.gtr.szp`, `cfg.gtr.dcrit`, `cfg.gtr.n_regions` (comment still calls it `ntexr`), `cfg.natural.max_val`. *Real consistency benefit, but touches `config.m` plus every reader — the call-site surface is the cost.*
-- [ ] 🟡 **0.3.8.** Rename any zone-3 frozen `save`/`load` name (listed in section 4.1.1). *The benefit is cosmetic naming consistency; the risk is breaking a shipped `.mat` artifact's contract. High risk for low benefit — candidate to drop rather than do.*
+- [ ] 🟠 **0.3.7.** Rename any zone-2 `cfg.*` cross-file field (listed in section 3.1.1) — deferred to its own pass. Candidates already spotted, not touched: `cfg.gtr.szp`, `cfg.gtr.dcrit`, `cfg.gtr.n_regions` (comment still calls it `ntexr`), `cfg.natural.max_val`. *Real consistency benefit, but touches `config.m` plus every reader — the call-site surface is the cost.*
+- [ ] 🟡 **0.3.8.** Rename any zone-3 frozen `save`/`load` name (listed in section 3.1.1). *The benefit is cosmetic naming consistency; the risk is breaking a shipped `.mat` artifact's contract. High risk for low benefit — candidate to drop rather than do.*
 - [ ] 🟠 **0.3.9.** `+segmentation/group_patches.m:112` discards `assign_isolated_patches`'s third output (`ngrps`) and recomputes group growth separately in the caller — two code paths compute the same count for the same event. De-duplicate, or confirm they can't diverge and say why. Not a bug as it stands; a divergence hazard. *Real correctness-adjacent benefit (closes a divergence hazard), contained to `+segmentation/`, but touches core segmentation logic and needs a golden-harness check — moderate cost.*
 - [x] 🔴 **0.3.10.** Act on the 0.3.5 triage — one item, since the table has one row. Convert `demo/plot_stage2.m:46` (verdict row `stage2-pdf-ylim`, *alternative*) from commented-out code into plain prose in the same spot, keeping the reason and dropping the fake `ylim` call. Nothing to delete: no block was judged *superseded* or *scaffolding*. *One line, in one file, verdict already licenses it — no design decision left, no risk. The other remaining 🔴.*
 - [ ] 🟡 **0.3.11.** `setup.m`'s `ensure_addon_on_path` guards an optional 5th argument that both call sites always pass — dead defensiveness, not a bug. Remove the guard or keep it deliberately. *Trivial effort and near-zero risk, but the benefit is genuinely marginal — a guard nobody exercises isn't causing harm either way.*
 
-**Moved out of this stage by the retrofit:** `twin-net/`'s camelCase file and top-level function names, which the Stage 1 step-4 log deferred here, are now Stage 1 item 0.1.7 — the skill treats them as mechanically checkable. Nothing else moved.
-
-Stage 3's work log (section 4.3) fills in as each item here is actually done.
-
 </div>
 
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">0.4 Stage 4, Bugs — done after Structure</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">⬜ 0.4 · Stage 4 · Bugs</h3></summary>
 
 <div style="margin-left:1.5em">
 
-Bugs found anywhere during stage 1, 2, or 3, recorded here as they're found and fixed here, after stage 3, so a fix doesn't get clobbered or duplicated by a structural change landing later. Also logged, as a repo-wide to-do item, in `docs/bill-2026-revisions.md`.
+**Description.** Bugs found anywhere during Stage 1/2/3, fixed here after Organize so a later organizational change can't clobber or duplicate a fix. Also logged in `docs/bill-2026-revisions.md`. **Rating:** 🔴 B1, silently wrong on a run path · 🟠 B2, reachable but not silent · 🟡 B3, latent. Id `B<severity>.<n>`, sorted by severity then discovery order.
 
-Each item's id is `B<severity>.<n>`: the severity number, 1 (highest) to 3 (lowest), then the item's position within that severity in the order found. The list is sorted by severity first and discovery order second — all B1s, then all B2s, then all B3s — and worked in that order: 🔴 = B1, silently wrong results on a path that has actually been run; 🟠 = B2, reachable but not silent — it errors out, or touches only plots, logging, or display; 🟡 = B3, latent, not reachable with the current config but a hazard for a plausible future use. The emoji leads the item, before the id.
+**Status.** B2.2 currently blocks Stage 2's golden-output guarantee.
+
+**To-do.**
 
 - [ ] 🔴 **B1.1.** `+segmentation/assign_isolated_patches.m:10-15` documents its own deliberate behaviour change from the original `iso_patch.m` (`i~=j` → `other_idx~=patch_idx`), already flagged in-file as changing the reproduced paper numbers — resurfaced here so it isn't missed in a skim. 🔴 because it moves numbers on a path that is actually run; the open question is whether the change is the fix or the regression, which is the user's call.
 - [ ] 🔴 **B1.2.** `pipeline/s4_optimize_bins.m` (`eval_r`, ~line 245) rejects outliers with `rv < -25` only — no upper-bound check — while `pair_responses.m`'s outlier rejection for the same kind of LLR quantity is two-sided. Comment marks it "as in the original," so likely long-standing, but the asymmetry is worth confirming with Geisler. 🔴 *if* the asymmetry is unintended: it would silently shift trained bin boundaries. Unconfirmed.
@@ -102,31 +99,47 @@ Each item's id is `B<severity>.<n>`: the severity number, 1 (highest) to 3 (lowe
 - [ ] 🟡 **B3.4.** `plot_stage7.m`'s header documents `method` as `'nc'` or `'bc'`, but the code (`plot_stage7.m` and identically `plot_stage8_natural.m`) does `struct('nc', 'c_shft', 'ncb', 'bc').(method)`, which only has fields `nc` and `ncb` — passing the documented `'bc'` value would error. Currently unreachable, but the header disagrees with the code it describes.
 - [ ] 🟡 **B3.5.** `run_demo.m`'s `try/catch err/rethrow(err)` around the `s7_segment_gtr` call is a no-op. No behavioural effect; remove it or give it a real handler.
 - [ ] 🟡 **B3.6.** Three bugs already flagged in-file by a previous author (not new, resurfaced for visibility): `neighbor_far_responses.m`'s header documents a fixed stateful-renormalization bug in the original code; `s7_segment_gtr.m`'s header documents an ecc-dependent neighbour-distance fix; `s6_selfsup_discrimination.m`'s header documents a `pd`/`eccb` inconsistency. All three are already fixed in this code — the item is to confirm that and keep the headers accurate, not to re-fix anything.
-- [ ] 🟡 **B3.7.** Two dangling pointers to a deleted document. `twin-net/texture_same_diff_patches_net.m:23` cites "`docs/readability-pass.md` section 5.3" for the zone-3 frozen-save-name list, and `tools/golden_harness.m:11` cites "`docs/readability-pass.md` sections 1.1 and 10" for the per-tranche entry points — but that file was deleted (it is the `D docs/readability-pass.md` in `git status`) and its content now lives in `docs/repo-cleanup.md`, the frozen-name list in section 4.1.1. Found while sweeping non-`.m` references in tranche 0.1.7; not fixed there, since rewriting a doc pointer is outside that tranche's narrow permitted edit. Latent: it misleads a future reader into thinking the frozen-name list is simply gone, which is exactly the reader who is about to rename a frozen name.
-
-Stage 4's work log (section 4.4) fills in as each item here is actually fixed.
+- [ ] 🟡 **B3.7.** Two dangling pointers to a deleted document. `twin-net/texture_same_diff_patches_net.m:23` cites "`docs/readability-pass.md` section 5.3" for the zone-3 frozen-save-name list, and `tools/golden_harness.m:11` cites "`docs/readability-pass.md` sections 1.1 and 10" for the per-tranche entry points — but that file was deleted (it is the `D docs/readability-pass.md` in `git status`) and its content now lives in `docs/repo-cleanup.md`, the frozen-name list in section 3.1.1. Found while sweeping non-`.m` references in tranche 0.1.7; not fixed there, since rewriting a doc pointer is outside that tranche's narrow permitted edit. Latent: it misleads a future reader into thinking the frozen-name list is simply gone, which is exactly the reader who is about to rename a frozen name.
 
 </div>
 
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">0.5 Stage 5, Speed — not started, and the scan is not done</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">⬜ 0.5 · Stage 5 · Speed</h3></summary>
 
 <div style="margin-left:1.5em">
 
-Optimization candidates, recorded here as they're found and **never made at the time**. Done last, once the code is structurally settled and correct: optimizing wrong code can freeze wrong output into the golden reference, and a bug fix sometimes dissolves the optimization because the redundant work *was* the bug.
+**Description.** Optimizations found anywhere, never made at the time — done last, once the code is structurally settled and correct, so a bug fix can't dissolve the optimization out from under it. Every item needs a before/after timing plus golden-output equality; no measurement, no item; if the speedup isn't worth the diff, revert and record the null result — that's completed, not failed. **Rating:** 🔴 big win, low risk · 🟠 real cost (moderate gain, or perturbs float/RNG/`parfor` order) · 🟡 small, speculative, or unverified. Id `S<tier>.<n>`. Separate axis, **verification status** — Proven / Perturbing / Unprofiled; Unprofiled doesn't cap the tier, it just means unmeasured.
 
-Each item's id is `O<tier>.<n>`. The tier is an overall risk/benefit call: 🔴 a large expected or measured win at low risk; 🟠 worth doing but with a real cost — a moderate gain, or a large one that perturbs float/RNG/`parfor` order and needs a tolerance decision first; 🟡 small, speculative, or unverified. Independent of tier, every item also carries a **verification status** — Proven (bit-identical), Perturbing (needs an agreed tolerance), or Unprofiled (no real measurement backs the benefit yet — **not implementable as recorded, whatever its tier**). Most items start Unprofiled; an Unprofiled item can still be tiered 🔴 if the potential payoff looks large on paper, since the tier is a priority call made with the information on hand, not proof the work is done.
+**Status.** The scan itself (S3.1) hasn't run — it didn't exist when this repo was surveyed; the two items below surfaced from earlier passes via `checkcode`, not a survey.
 
-**This list is incomplete, and that is the first item.** The optimization scan (skill step 0) did not exist when this repo was surveyed, so section 1 has no performance-shape measurement. The two entries below are the only candidates the earlier passes happened to write down, both found via `checkcode` rather than by looking.
+**To-do.**
 
-- [ ] 🟡 **O3.1.** Run the optimization scan over all 66 in-scope files and fill in section 1's performance-shape bullet. Seven patterns to look for: loop-invariant work recomputed in a loop; file I/O (`load`/`imread`/`save`/`dir`/`exist`) inside a loop; `inv`/`pinv`/`det` where a solve would do; array growth beyond what Stage 2 covered; whole-array recomputation where an incremental update exists; plainly-elementwise loops and serial `parfor` candidates; `parfor` loops writing to a reduction variable. Every hit becomes a new item here. Pure reading, no execution, no edits. **Verification status: n/a** — this item is the scan itself, not a code change.
-- [ ] 🟡 **O3.2.** `+segmentation/content_features.m:47` and `+segmentation/content_similarity_matrix.m:52` each carry a `checkcode` `parfor`-broadcast note — a variable copied to every worker rather than sliced. Recorded twice in section 4.2 as a "Stage 3 performance note" but never actually listed as an item until this retrofit. **Verification status: Unprofiled.** Both loops are the O(n²) all-pairs combine, so the potential payoff is plausibly large — but nothing has been measured, and an unmeasured "plausibly large" is exactly the case the skill says stays 🟡 regardless of how big it looks on paper, rather than jumping to 🔴 on the strength of a guess.
+- [ ] 🟡 **S3.1.** Run the optimization scan over all 66 in-scope files and fill in section 2's performance-shape bullet. Seven patterns to look for: loop-invariant work recomputed in a loop; file I/O (`load`/`imread`/`save`/`dir`/`exist`) inside a loop; `inv`/`pinv`/`det` where a solve would do; array growth beyond what Stage 2 covered; whole-array recomputation where an incremental update exists; plainly-elementwise loops and serial `parfor` candidates; `parfor` loops writing to a reduction variable. Every hit becomes a new item here. Pure reading, no execution, no edits. **Verification status: n/a** — this item is the scan itself, not a code change.
+- [ ] 🟡 **S3.2.** `+segmentation/content_features.m:47` and `+segmentation/content_similarity_matrix.m:52` each carry a `checkcode` `parfor`-broadcast note — a variable copied to every worker rather than sliced. Recorded twice in section 3.2 as a "Stage 3 performance note." **Verification status: Unprofiled.** Both loops are the O(n²) all-pairs combine, so the potential payoff is plausibly large — but nothing has been measured, and an unmeasured "plausibly large" is exactly the case the skill says stays 🟡 regardless of how big it looks on paper, rather than jumping to 🔴 on the strength of a guess.
 
-Worked in tier order. Every item needs a before timing, golden-output equality, and an after timing; **if the speedup isn't worth the diff, the change is reverted and the null result recorded** — that is a completed item, not a failure. Timing runs execute the real pipeline, so each one is asked for first.
+Timing runs execute the real pipeline, so each one is asked for first.
 
-Stage 5's work log (section 4.5) fills in as each item here is measured.
+</div>
+
+</details>
+
+<details style="margin:0.7em 0 0.7em 1.5em">
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">⬜ 0.6 · Stage 6 · Closing</h3></summary>
+
+<div style="margin-left:1.5em">
+
+**Description.** A single fixed gate, run once 0.1 and 0.2 are done and every 🔴 item in 0.3 through 0.5 is done — not a findings list, so no rating legend and no items beyond the four below. Confirms the whole repo agrees with the plan's record, rather than trusting the sum of the per-item checks. Never auto-dispatched, for the same reason as Stages 4 and 5 but a different cause: there's nothing to hand to a subagent, so the orchestrator runs all four itself.
+
+**Status.** Not yet reached: 0.3, 0.4, and 0.5 are still open.
+
+**To-do.**
+
+- [ ] **0.6.1.** `check_stage1` re-run across every in-scope file against current HEAD.
+- [ ] **0.6.2.** `golden_harness('replay', ...)` clean, end to end — blocked today by B2.2.
+- [ ] **0.6.3.** Every 🔴 item in 0.3, 0.4, and 0.5 ticked, or explicitly closed with a reason.
+- [ ] **0.6.4.** Section 2 re-checked against the repo as it now stands.
 
 </div>
 
@@ -137,38 +150,7 @@ Stage 5's work log (section 4.5) fills in as each item here is measured.
 ---
 
 <details>
-<summary><h2 style="display:inline; margin:0; font-size:1.15em">1. Scope and measurements</h2></summary>
-
-<div style="margin-left:1.5em">
-
-Every number in this document was measured on the repo as it stands (MATLAB R2024b), not estimated. Re-measure before trusting any of them after substantial changes.
-
-**Scope, precisely.** `Bill's old code/` and `Bill's old code - revised/` are excluded entirely — 93 `.m` files of ancestral code, gitignored, kept for reference only. That leaves **66 files, 5744 lines** in scope: `+segmentation/` (10 files, 622 lines), `+gtr/` (2, 122), `pipeline/` (21, 1449), `demo/` (18, 1352), `twin-net/` (11, 847), the three root files `run_demo.m`/`setup.m`/`config.m` (547), and `experiments/adaptive_hist_exp.m` (805).
-
-**What is actually wrong with the files**, measured, not assumed:
-
-- **Lint is a non-issue.** `checkcode` reports 11 messages across all 66 files, confined to six files. 62 of 66 are lint-clean.
-- **Formatting is nearly clean.** Zero tab-indented files, every file has a header comment. The one real defect: **37 files carry at least one line over 100 characters**, worst `demo/plot_stage1b_gradients.m:128` (159 chars). Two files hold a third of the total: `experiments/adaptive_hist_exp.m` (62 long lines) and `twin-net/train_net.m` (31).
-- **Header docs are half-finished.** All 66 open with a comment, but only 34 carry an `Inputs`/`Output` block. Zero have a `See also` line. No `Contents.m` anywhere. This was the single largest, cheapest readability gap.
-- **Names are the real problem.** Heavy abbreviation, consistent but never defined: `psz` 321 occurrences, `ecc` 173, `dv` 112, `col` 94, `pimg` 65, `ngrps` 50, `itype` 44, `nsmp` 33, `b0` 24, plus bare loop counters `i`/`j`.
-- **Names diverge across call boundaries** — e.g. `prep_grid` returns `[P, G, Gn]` but `content_features` receives the same three renamed `(P, G, E, …)`.
-- **Two naming conventions coexist**: the repo is snake_case except `twin-net/`, which is camelCase in both file and identifier names. The *identifiers* were converted in Stage 1 tranche 4; the **seven camelCase filenames remain** — `forwardTwin.m`, `getTwinBatchPairs.m`, `getTwinBatch_nat_live.m`, `load_nat_A_pool.m`, `modelLoss.m`, `poolStats.m`, `predictTwin.m`. Measured 2026-09-15 with `git ls-files '*.m' | grep '[A-Z]'`; the only other capitalized matches are the two `Contents.m` files, which are MATLAB's own required spelling and stay. Target is snake_case throughout — item 0.1.7, **now done**: six of the seven were renamed, and `load_nat_A_pool.m` stays as it is (the deliberate `A` exception, section 4.1.1b). Re-measured after the rename, `git ls-files '*.m' | grep '[A-Z]'` returns only `load_nat_A_pool.m` and the two `Contents.m` files.
-- **Performance shape: not measured.** The optimization scan did not exist when this survey was written, so there is no inventory here. Filling it in is item O3.1 in section 0.5. Known so far, both from `checkcode` rather than from looking: two `parfor`-broadcast notes (item O3.2).
-- **Timing data: almost none.** Exactly one timer in the in-scope code — `twin-net/train_net.m:269` (`start = tic;`), for per-iteration training progress, not for comparing stages. No logged runtimes, no note anywhere on which stage dominates wall-clock. Nobody knows where the time goes; it is unmeasured, not inferred from loop nesting. This is why every 0.5 item starts life Unprofiled.
-- **Three builtin shadows**: `image` used as a parameter name in three `+segmentation/` files.
-- **Commented-out code is present but small**: 113 of 5744 lines look like commented-out code. Nothing judged or removed here — that's the Stage 3 triage, item 0.3.5, whose per-block verdicts live in section 4.3.
-- **No `arguments` blocks, no `inputParser` anywhere.** Adding them is Stage 3.
-
-**The style target already exists** — do not invent a new one. `vislab-common/+vislab/+lib/watson_otf.m` is the exemplar (summary line, fully-qualified signature, `Inputs`/`Output` with units, `See also`). Within this repo, `+segmentation/prep_grid.m` and `pipeline/pair_responses.m` are the closest existing approximations. Verified: no in-scope file shares a name with anything in `vislab-common` or `Bill's old code*/`, so there is no already-superseded-elsewhere trap here.
-
-</div>
-
-</details>
-
----
-
-<details>
-<summary><h2 style="display:inline; margin:0; font-size:1.15em">2. The check (Stage 1) and what the repo affords for Stage 2</h2></summary>
+<summary><h2 style="display:inline; margin:0; font-size:1.15em">1. How an agent should execute this cleanup plan</h2></summary>
 
 <div style="margin-left:1.5em">
 
@@ -201,49 +183,27 @@ assert(isempty(intersect(dom, ran)));
 
 Caveat: `mtree`/`tree2str` are undocumented MATLAB APIs — pin the MATLAB version in commit messages (this pass used R2024b throughout).
 
-**Stage 2's extra requirement: runtime golden output.** Unlike the sibling `camouflage_detection` repo (~40% of files don't execute), this repo runs, so Stage 2 changes can be checked against real outputs, not just pattern-matching. `tools/golden_harness.m` captures/replays deterministic outputs (`rng(cfg.seed)`, never through `run_demo`, which uses `rng('shuffle')` on some paths) for entry points across every tranche except `experiments/adaptive_hist_exp.m` (a script — see section 4.2). All nine `parfor` loops in the repo write into a sliced output rather than a reduction variable, so worker order can't change a float sum — safe to leave alone; if a future edit turns one into a reduction, that edit is Stage 3.
+**Stage 2's extra requirement: runtime golden output.** Unlike the sibling `camouflage_detection` repo (~40% of files don't execute), this repo runs, so Stage 2 changes can be checked against real outputs, not just pattern-matching. `tools/golden_harness.m` captures/replays deterministic outputs (`rng(cfg.seed)`, never through `run_demo`, which uses `rng('shuffle')` on some paths) for entry points across every tranche except `experiments/adaptive_hist_exp.m` (a script — see section 3.2). All nine `parfor` loops in the repo write into a sliced output rather than a reduction variable, so worker order can't change a float sum — safe to leave alone; if a future edit turns one into a reduction, that edit is Stage 3.
 
-</div>
-
-</details>
-
----
-
-<details>
-<summary><h2 style="display:inline; margin:0; font-size:1.15em">3. Five stages of change, in full</h2></summary>
-
-<div style="margin-left:1.5em">
-
-| Stage | Name | Change | Canonical diff | Verification |
-|---|---|---|---|---|
-| **1** | **Style** | Comments, header docs, whitespace, reflow, blank-line grouping, file-local renames, **function and file renames** | empty (after reverse rename) | `isequal` — fully automatic, no execution |
-| **2** | **Tidying** | Adding a suppressing `;`, preallocation, `find`→logical indexing, deleting a provably unused assignment — a closed list of four | non-empty but must match a whitelisted pattern | pattern check **plus** runtime golden output |
-| **3** | **Structure** | Signature changes, adding `arguments` blocks, merging duplicate functions, reordering statements, changing accumulation order in a float reduction, anything touching the RNG stream, **triaging commented-out code** — each item marked 🔴/🟠/🟡 | — | **not part of the behaviour-preserving pass** — reviewed and done individually, once stage 1/2 is done |
-| **4** | **Bugs** | Bug fixes found anywhere during stage 1/2/3, each marked 🔴/🟠/🟡 | — | not mechanically checkable — reviewed and fixed individually in severity order, once stage 3 is done |
-| **5** | **Speed** | Optimizations found anywhere, each marked 🔴/🟠/🟡 | — | golden-output equality **plus** a measured before/after timing on a real input; no measurement, no item. Done last, in tier order |
-
-*Two notes on what actually happened here, versus the procedure as it now stands:*
-
-- **Commented-out-code triage.** The skill now has stage 1 do this live, per tranche, as each file is read. This repo's stage 1 finished before that change, so its triage was done as a stage 3 item (0.3.5, see section 4.3) after the fact.
-- **Function and file renames.** The skill now puts these in stage 1, in their own repo-wide tranche running *before* every other tranche, so no header or `See also` line ever names a file that later moves. This repo's stage 1 ran without that tranche and deferred the seven camelCase filenames, so the rename lands last instead of first (item 0.1.7) and has to fix the already-written cross-references on its way through.
-
-Speed is its own stage rather than a corner of Structure because the verification differs: a Structure item is reviewed and reasoned about, a Speed item is not done until a stopwatch says it worked. Being last also makes it the one stage droppable without touching anything else.
+Speed is its own stage rather than a corner of Organize because the verification differs: an Organize item is reviewed and reasoned about, a Speed item is not done until a stopwatch says it worked. Being last also makes it the one stage droppable without touching anything else.
 
 Semicolon insertion is stage 2, not stage 1: `tree2str` preserves display-vs-suppress, so the canonical diff is exactly `X` → `X;` — trivially whitelisted, but not invisible.
 
 Stage 3 matters most. The tempting changes in this repo are all Stage 3 (see section 0.3's list). Every one of them changes output, call sites, or validation behaviour, so none of them belong in the behaviour-preserving pass — keeping them out is what makes that pass's diff skimmable instead of line-by-line. They are the next step of the same overall cleanup, not abandoned.
 
-**All three of Structure, Bugs, and Speed rate their items on the same three-colour scale** — 🔴 highest, 🟠 middle, 🟡 lowest — though what the tier means differs by list: how bad a bug is if left unfixed, versus overall cost/benefit for a structural item, versus overall risk/benefit for an optimization. See sections 0.3, 0.4, and 0.5.
+**All three of Organize, Bugs, and Speed rate their items on the same three-colour scale** — 🔴 highest, 🟠 middle, 🟡 lowest — though what the tier means differs by list: how bad a bug is if left unfixed, versus overall cost/benefit for an organizational item, versus overall risk/benefit for an optimization. See sections 0.3, 0.4, and 0.5.
 
-When the pass uncovers a *structural opportunity* — and it will — **record it in 0.3 with its tier emoji and do not make the change**, the same discipline as a bug or an optimization.
+When the pass uncovers an *organizational opportunity* — and it will — **record it in 0.3 with its tier emoji and do not make the change**, the same discipline as a bug or an optimization.
 
 When the pass uncovers an *optimization* — and it will — **record it in 0.5 with its tier emoji and do not make it**, however small it looks. The "easy" one spotted mid-tranche is the likeliest way this rule gets broken.
 
-When the pass uncovers a *bug* — and it will — **record it in the findings list first, marked with its severity emoji**, so the recording survives even before the fix happens; the fix itself comes later, as a Stage 4 item, kept separate from Stage 3 so the bug list never gets buried inside the structural-cleanup list. Even a 🔴 waits: the severity sets the fix order within Stage 4, it does not pull a fix forward or interrupt the tranche that found it.
+When the pass uncovers a *bug* — and it will — **record it in the findings list first, marked with its severity emoji**, so the recording survives even before the fix happens; the fix itself comes later, as a Stage 4 item, kept separate from Stage 3 so the bug list never gets buried inside the organizational-cleanup list. Even a 🔴 waits: the severity sets the fix order within Stage 4, it does not pull a fix forward or interrupt the tranche that found it.
 
-Commented-out code is not a delete item. It is triaged first (item 0.3.5) — one verdict per block, worked out by reading the code around it — and only then acted on, with *keep* as the default whenever the purpose isn't recoverable. The verdict table lives in section 4.3.
+**Before working section 0.3 further, check whether section 2 is still current.** If meaningful time has passed since it was measured (2026-09-15), or the file set has changed, re-measure it — Organize's tiers and Stage 5's S3.1 scan both lean on those numbers being live, not on what was true when the plan was written.
 
-Statement reordering is kept out of stage 1/2 even though it looks cosmetic, purely because the check cannot distinguish a safe reorder from an unsafe one — it gets the same individual review as the rest of stage 3.
+**Golden-reference maintenance, Stage 3 and Stage 4.** Run `golden_harness('replay', ...)` after every Stage 3 or Stage 4 item, not only after Stage 1/2 tranches. If the item was meant to be output-preserving and replay still passes, nothing to do — that's what happened for 0.3.3 and 0.3.10, both already verified this way. If replay fails, decide which happened before touching the reference: the item was *expected* to change output — recapture deliberately and log what changed and by how much — or it was supposed to be output-preserving and something moved that shouldn't have, which is a new bug for section 0.4, not a reason to recapture. **B2.2 is exactly this undecided case, from before this rule existed**: replay fails, cause unknown, and it must be resolved (bug, or deliberate recapture) before it can close.
+
+**Stage 6 (Closing), once Stages 1 and 2 are done and every 🔴 item of Stages 3 through 5 is done:** re-run the full check suite end to end (section 0.6's checklist) rather than trusting the sum of the per-item checks. Not reached yet — 0.3, 0.4, and 0.5 are still open.
 
 </div>
 
@@ -252,15 +212,46 @@ Statement reordering is kept out of stage 1/2 even though it looks cosmetic, pur
 ---
 
 <details>
-<summary><h2 style="display:inline; margin:0; font-size:1.15em">4. Stage-by-stage details and work log</h2></summary>
+<summary><h2 style="display:inline; margin:0; font-size:1.15em">2. Scope and measurements</h2></summary>
+
+<div style="margin-left:1.5em">
+
+Every number in this document was measured on the repo as it stands (MATLAB R2024b), not estimated, surveyed 2026-09-15. Re-measure before trusting any of them after substantial changes, or once real time has passed since that date (see section 1).
+
+**Scope, precisely.** `Bill's old code/` and `Bill's old code - revised/` are excluded entirely — 93 `.m` files of ancestral code, gitignored, kept for reference only. That leaves **66 files, 5744 lines** in scope: `+segmentation/` (10 files, 622 lines), `+gtr/` (2, 122), `pipeline/` (21, 1449), `demo/` (18, 1352), `twin-net/` (11, 847), the three root files `run_demo.m`/`setup.m`/`config.m` (547), and `experiments/adaptive_hist_exp.m` (805).
+
+**What is actually wrong with the files**, measured, not assumed:
+
+- **Lint is a non-issue.** `checkcode` reports 11 messages across all 66 files, confined to six files. 62 of 66 are lint-clean.
+- **Formatting is nearly clean.** Zero tab-indented files, every file has a header comment. The one real defect: **37 files carry at least one line over 100 characters**, worst `demo/plot_stage1b_gradients.m:128` (159 chars). Two files hold a third of the total: `experiments/adaptive_hist_exp.m` (62 long lines) and `twin-net/train_net.m` (31).
+- **Header docs are half-finished.** All 66 open with a comment, but only 34 carry an `Inputs`/`Output` block. Zero have a `See also` line. No `Contents.m` anywhere. This was the single largest, cheapest readability gap.
+- **Names are the real problem.** Heavy abbreviation, consistent but never defined: `psz` 321 occurrences, `ecc` 173, `dv` 112, `col` 94, `pimg` 65, `ngrps` 50, `itype` 44, `nsmp` 33, `b0` 24, plus bare loop counters `i`/`j`.
+- **Names diverge across call boundaries** — e.g. `prep_grid` returns `[P, G, Gn]` but `content_features` receives the same three renamed `(P, G, E, …)`.
+- **Two naming conventions coexist**: the repo is snake_case except `twin-net/`, which is camelCase in both file and identifier names. The *identifiers* were converted in Stage 1 tranche 4; the **seven camelCase filenames remain** — `forwardTwin.m`, `getTwinBatchPairs.m`, `getTwinBatch_nat_live.m`, `load_nat_A_pool.m`, `modelLoss.m`, `poolStats.m`, `predictTwin.m`. Measured 2026-09-15 with `git ls-files '*.m' | grep '[A-Z]'`; the only other capitalized matches are the two `Contents.m` files, which are MATLAB's own required spelling and stay. Target is snake_case throughout — item 0.1.7, **now done**: six of the seven were renamed, and `load_nat_A_pool.m` stays as it is (the deliberate `A` exception, section 3.1.1b). Re-measured after the rename, `git ls-files '*.m' | grep '[A-Z]'` returns only `load_nat_A_pool.m` and the two `Contents.m` files.
+- **Performance shape: not measured.** The optimization scan did not exist when this survey was written, so there is no inventory here. Filling it in is item S3.1 in section 0.5. Known so far, both from `checkcode` rather than from looking: two `parfor`-broadcast notes (item S3.2).
+- **Timing data: almost none.** Exactly one timer in the in-scope code — `twin-net/train_net.m:269` (`start = tic;`), for per-iteration training progress, not for comparing stages. No logged runtimes, no note anywhere on which stage dominates wall-clock. Nobody knows where the time goes; it is unmeasured, not inferred from loop nesting. This is why every 0.5 item starts life Unprofiled.
+- **Three builtin shadows**: `image` used as a parameter name in three `+segmentation/` files.
+- **Commented-out code is present but small**: 113 of 5744 lines look like commented-out code. Nothing judged or removed here — that's the Stage 3 triage, item 0.3.5, whose per-block verdicts live in section 3.3.
+- **No `arguments` blocks, no `inputParser` anywhere.** Adding them is Stage 3.
+
+**The style target already exists** — do not invent a new one. `vislab-common/+vislab/+lib/watson_otf.m` is the exemplar (summary line, fully-qualified signature, `Inputs`/`Output` with units, `See also`). Within this repo, `+segmentation/prep_grid.m` and `pipeline/pair_responses.m` are the closest existing approximations. Verified: no in-scope file shares a name with anything in `vislab-common` or `Bill's old code*/`, so there is no already-superseded-elsewhere trap here.
+
+</div>
+
+</details>
+
+---
+
+<details>
+<summary><h2 style="display:inline; margin:0; font-size:1.15em">3. Stage-by-stage details and work log</h2></summary>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">4.1 Stage 1, Style — renaming zones, tranches, and findings log</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">3.1 · Stage 1 · Style</h3></summary>
 
 <div style="margin-left:1.5em">
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h4 style="display:inline; margin:0; font-size:0.98em">4.1.1 Renaming: three zones</h4></summary>
+<summary><h4 style="display:inline; margin:0; font-size:0.98em">3.1.1 Renaming: three zones</h4></summary>
 
 <div style="margin-left:1.5em">
 
@@ -281,7 +272,7 @@ The rename map is the pass's most valuable artifact and its main divergence risk
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h4 style="display:inline; margin:0; font-size:0.98em">4.1.1b Function and file rename map (item 0.1.7)</h4></summary>
+<summary><h4 style="display:inline; margin:0; font-size:0.98em">3.1.1b Function and file rename map (item 0.1.7)</h4></summary>
 
 <div style="margin-left:1.5em">
 
@@ -304,7 +295,7 @@ A file rename *is* the function rename — MATLAB dispatches on the filename —
 1. **The `get*` prefix** on the two files above — kept, not dropped, even though nothing else in the repo carries it. Both are data-loading callbacks, which is the justification for the exception.
 2. **`A` for the achromatic channel** in `load_nat_A_pool.m` — kept capitalized, matching the ecosystem-wide `RGB->LMS->A` notation, rather than lowercased to `a` (unreadable) or respelled `achrom`. This file's name does not change at all in this tranche.
 
-**Four sweeps `check_stage1` cannot do** — all four answered in section 4.1.3, step 7, now that the tranche has run:
+**Four sweeps `check_stage1` cannot do** — all four answered in section 3.1.3, step 7, now that the tranche has run:
 
 - **Package-qualified call sites.** None of the seven are in a package (`twin-net/` is a plain directory, not `+twinnet/`), so the dot-qualified blind spot does not apply here. Confirm at run time rather than assuming.
 - **References outside `.m` files.** At minimum `twin-net/net_plan.md` and this plan document both name these functions in prose. Grep every old name repo-wide, including non-`.m` files.
@@ -316,7 +307,7 @@ A file rename *is* the function rename — MATLAB dispatches on the filename —
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h4 style="display:inline; margin:0; font-size:0.98em">4.1.2 Tranches, sequencing, and model assignment</h4></summary>
+<summary><h4 style="display:inline; margin:0; font-size:0.98em">3.1.2 Tranches, sequencing, and model assignment</h4></summary>
 
 <div style="margin-left:1.5em">
 
@@ -333,7 +324,7 @@ The **Agent** column is what the orchestrator dispatches to — see the skill's 
 | 4 | `twin-net/` | 11 / 847 | `matlab-cleanup-mechanical` | camelCase→snake_case as one decision applied 11 times |
 | 5 | Root: `config.m`, `setup.m`, `run_demo.m` | 3 / 547 | `matlab-cleanup-lead` | `config.m` is the zone-2 vocabulary source; `run_demo.m` is user-facing |
 | 6 | `experiments/adaptive_hist_exp.m` | 1 / 805 | `matlab-cleanup-mechanical` | Large, exploratory, no callers |
-| 7 | **Function and file renames** (section 4.1.1b) | all 66 | `matlab-cleanup-lead` | **Done** (see section 4.1.3, step 7). Added by the 2026-09-15 retrofit. Repo-wide, never parallel with anything. The skill runs this *first*; here it ran last, so it also swept the `See also` lines tranches 1–6 had already written (neither `Contents.m` named any renamed file) |
+| 7 | **Function and file renames** (section 3.1.1b) | all 66 | `matlab-cleanup-lead` | **Done** (see section 3.1.3, step 7). Repo-wide, never parallel with anything. The skill runs this *first*; here it ran last, so it also swept the `See also` lines tranches 1–6 had already written (neither `Contents.m` named any renamed file) |
 
 **Escalation rule, any tranche:** if `check_stage1` fails and the cause isn't obvious from the diff — stop, don't retry with a bigger prompt, hand that one file to `matlab-cleanup-escalation`. Don't loosen the check instead.
 
@@ -341,13 +332,13 @@ The **Agent** column is what the orchestrator dispatches to — see the skill's 
 
 - [x] `isequal(canon(old), canon_with_renames_reversed(new))` true for every file.
 - [x] Every file has a header matching the `watson_otf.m` shape: summary, signature, `Inputs`/`Output` with units, `See also`.
-- [x] No line exceeds 100 characters except the documented string-literal exceptions (listed per tranche in section 4.1.3) — each would require turning a string literal into a `horzcat` expression, a real AST change forbidden by Stage 1.
+- [x] No line exceeds 100 characters except the documented string-literal exceptions (listed per tranche in section 3.1.3) — each would require turning a string literal into a `horzcat` expression, a real AST change forbidden by Stage 1.
 - [x] No zone-3 frozen identifier renamed, no `save`/`load` string literal changed.
 - [x] Each package touched has a `Contents.m` (`+segmentation/`, `+gtr/`).
-- [x] Bugs found are written down with a severity tag and not fixed (section 0.4, and section 4.1.3 per-tranche).
-- [x] Every identifier the repo owns is snake_case, including filenames — closed by tranche 7. The one standing exception is `load_nat_A_pool.m`, kept by explicit user decision (section 4.1.1b).
+- [x] Bugs found are written down with a severity tag and not fixed (section 0.4, and section 3.1.3 per-tranche).
+- [x] Every identifier the repo owns is snake_case, including filenames — closed by tranche 7. The one standing exception is `load_nat_A_pool.m`, kept by explicit user decision (section 3.1.1b).
 - [x] Each file's `function` line agrees with its filename — confirmed by tranche 7 across all of `twin-net/`.
-- [ ] Optimizations spotted are written down with a tier tag and not made (section 0.5) — **retroactively open**: the scan was never run, item O3.1.
+- [ ] Optimizations spotted are written down with a tier tag and not made (section 0.5) — **open**: the scan was never run, item S3.1.
 
 One commit per tranche, each stating the checker result.
 
@@ -358,7 +349,7 @@ One commit per tranche, each stating the checker result.
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h4 style="display:inline; margin:0; font-size:0.98em">4.1.3 Findings log</h4></summary>
+<summary><h4 style="display:inline; margin:0; font-size:0.98em">3.1.3 Findings log</h4></summary>
 
 <div style="margin-left:1.5em">
 
@@ -424,7 +415,7 @@ CamelCase→snake_case identifier unification applied as one consistent decision
 
 <div style="margin-left:1.5em">
 
-Same backup-vs-HEAD split as Step 3: `config.m`/`run_demo.m` carry pre-existing color-extension WIP, verified against a pre-edit backup; `setup.m` had no dirty diff, verified against HEAD directly. Additionally ran `config(true)`/`config(false)` on backup vs. edited copy and confirmed `isequal` structs. **No `cfg.*` field was renamed, added, or removed** by this tranche. Added the unit annotations called for in section 4.1.1. `run_demo.m`'s `rng('shuffle')` byte-for-byte unchanged. 5 documented line-length exceptions in `setup.m`, 1 in `run_demo.m`.
+Same backup-vs-HEAD split as Step 3: `config.m`/`run_demo.m` carry pre-existing color-extension WIP, verified against a pre-edit backup; `setup.m` had no dirty diff, verified against HEAD directly. Additionally ran `config(true)`/`config(false)` on backup vs. edited copy and confirmed `isequal` structs. **No `cfg.*` field was renamed, added, or removed** by this tranche. Added the unit annotations called for in section 3.1.1. `run_demo.m`'s `rng('shuffle')` byte-for-byte unchanged. 5 documented line-length exceptions in `setup.m`, 1 in `run_demo.m`.
 
 </div>
 
@@ -446,7 +437,7 @@ User confirmed this file is being kept. No HEAD baseline exists (whole file untr
 
 <div style="margin-left:1.5em">
 
-Six files renamed per the map in section 4.1.1b, all with `git mv` so history follows; `load_nat_A_pool.m` untouched as decided. Twelve `.m` files were edited in total — the six renamed files plus six callers — and two non-`.m` files. Baseline for every one of the twelve was `git show HEAD:<old_path>`, valid because `twin-net/` and `tools/` were both clean at HEAD (`git status` before starting listed only pre-existing `demo/` work-in-progress and the untracked plan and checker).
+Six files renamed per the map in section 3.1.1b, all with `git mv` so history follows; `load_nat_A_pool.m` untouched as decided. Twelve `.m` files were edited in total — the six renamed files plus six callers — and two non-`.m` files. Baseline for every one of the twelve was `git show HEAD:<old_path>`, valid because `twin-net/` and `tools/` were both clean at HEAD (`git status` before starting listed only pre-existing `demo/` work-in-progress and the untracked plan and checker).
 
 **Verbatim `check_stage1` output** (MATLAB R2024b, rename map = the six `{new, old}` bare-identifier pairs):
 
@@ -481,7 +472,7 @@ ALL PASS: 1
 
 1. **The rename itself.** Six `git mv`s; each file's `function` line edited to match its new filename. Also re-checked repo-wide that every `function` line agrees with its filename: the only two apparent mismatches are `experiments/adaptive_hist_exp.m` and `twin-net/texture_same_diff_patches_net.m`, and both are *scripts* whose first `function` keyword introduces a local function — not real mismatches.
 2. **Call-site sweep** (each old name as a bare identifier). Found in five callers: `twin-net/train_net.m` (the bulk — 12 call sites, plus `dlfeval(@modelLoss, …)` → `@model_loss`), `twin-net/model_loss.m` (calls `forward_twin`), `twin-net/forward_twin.m` and `twin-net/predict_twin.m` (both call `pool_stats`), and `tools/golden_harness.m` (three calls). All updated.
-3. **Non-`.m` references.** `twin-net/net_plan.md` had four (one `getTwinBatch_nat_live`, three `poolStats`) — all updated. `docs/repo-cleanup.md` had three kinds of mention: the rename map in 4.1.1b (the old names *are* the map, left as they are), the section-1 casing census (updated with a fresh measurement), and the Stage 2 log entry naming the harness entry points (updated to the new names, with a parenthetical saying they were renamed here). No other non-`.m` file in the repo mentions any of the six.
+3. **Non-`.m` references.** `twin-net/net_plan.md` had four (one `getTwinBatch_nat_live`, three `poolStats`) — all updated. `docs/repo-cleanup.md` had three kinds of mention: the rename map in 3.1.1b (the old names *are* the map, left as they are), the section-2 casing census (updated with a fresh measurement), and the Stage 2 log entry naming the harness entry points (updated to the new names, with a parenthetical saying they were renamed here). No other non-`.m` file in the repo mentions any of the six.
 4. **Dynamic references.** None exist. Grepped each old name as a quoted string (single and double), and separately grepped the whole repo for `feval`, `str2func`, `which(`, `exist(`, and `help <name>`: every `exist`/`which` hit is about a file path, a config field, or the `dlnetwork` toolbox probe, and no old name appears inside a string literal anywhere. The only indirection is `dlfeval(@model_loss, …)`, which is a bare-identifier function handle and therefore *is* covered by `check_stage1`'s regex.
 5. **Already-written cross-references.** This was the real cost of running the tranche late instead of first, and it found more than the call-site sweep did. Stage 1 tranche 4 had written `See also` lines naming the old files in **eight** places across seven files, three of which contain no call at all (`find_nat_patch.m`, `load_nat_A_pool.m`, `nat_near_far_patches_net.m`) and so would have been missed by a call-site-only sweep. All updated. Prose mentions inside header docs were updated too (`load_nat_A_pool.m:17`, `nat_near_far_patches_net.m:8`, `texture_same_diff_patches_net.m:12`, `get_twin_batch_nat_live.m:11`, and the "use X during training, Y for inference" cross-links in `forward_twin.m`/`predict_twin.m`). **Neither `Contents.m` needed a change:** they exist only for `+segmentation/` and `+gtr/`, and neither names a `twin-net/` file — `twin-net/` is a plain directory with no `Contents.m` of its own.
 6. **Package-qualified check — confirmed explicitly, not assumed.** `git ls-files | grep -o '^+[^/]*'` returns exactly `+gtr` and `+segmentation`, so `twin-net/` is a plain directory and none of the six functions is packaged. Independently, `git grep -nE "\.(forwardTwin|predictTwin|modelLoss|poolStats|getTwinBatch)"` returns nothing — not one call site anywhere had a `.` immediately before a renamed name. So the dot-qualified blind spot at `check_stage1.m:30` never came into play, every one of the twelve files was verified mechanically, and none needed diff-reading as a fallback.
@@ -491,11 +482,11 @@ ALL PASS: 1
 
 **Line lengths.** No file this tranche touched has a line over 100 characters as a result of it. `tools/golden_harness.m:67` is 115 characters, but that is the pre-existing `pair_responses` call line, untouched here, and `tools/` is not among the 66 in-scope style files.
 
-**Commented-out code.** None in any of the twelve files — documented negative. The repo-wide triage (item 0.3.5, verdict table in section 4.3) had already swept all 66 files and found exactly one real block, in `demo/plot_stage2.m`, which this tranche did not open.
+**Commented-out code.** None in any of the twelve files — documented negative. The repo-wide triage (item 0.3.5, verdict table in section 3.3) had already swept all 66 files and found exactly one real block, in `demo/plot_stage2.m`, which this tranche did not open.
 
 **Bugs found and not fixed:** two, both recorded in section 0.4 — 🟠 **B2.2** (the golden harness no longer replays; four fields differ, none of them `twin-net/`, and the cause predates this tranche) and 🟡 **B3.7** (two in-code pointers to the deleted `docs/readability-pass.md`).
 
-**Optimizations found:** none. The permitted edit here was `git mv`, `function` lines, call sites, and doc references, so no loop body or numeric path was read closely enough to judge one, and nothing jumped out in what was read. Section 0.5 is unchanged by this tranche, and O3.1 (run the actual scan) stays open.
+**Optimizations found:** none. The permitted edit here was `git mv`, `function` lines, call sites, and doc references, so no loop body or numeric path was read closely enough to judge one, and nothing jumped out in what was read. Section 0.5 is unchanged by this tranche, and S3.1 (run the actual scan) stays open.
 
 **Left ambiguous — one thing, and it matters more than this tranche does.** B2.2 is not diagnosable from inside a rename tranche. `tools/golden_ref.mat` and the current repo disagree on four of fifteen fields, and the honest position is that this tranche can prove only the narrow claim: *it* did not cause the disagreement, because all four failing entry points live in files it never opened and which are clean at HEAD. Whether the reference is merely stale or an output genuinely moved is the user's call, and **`golden_harness('capture', …)` was deliberately not run** — re-capturing now would bless whatever the current state happens to be, which is exactly why the standing authorization excludes capture. The field-by-field comparison that produced the diagnosis used a read-only copy of the harness in the scratchpad with its `save` branch removed, so nothing in `tools/` was written.
 
@@ -512,7 +503,7 @@ ALL PASS: 1
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">4.2 Stage 2, Tidying — coverage gaps and work log</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">3.2 · Stage 2 · Hygiene</h3></summary>
 
 <div style="margin-left:1.5em">
 
@@ -600,7 +591,7 @@ No Stage 2 edits (pattern-check-only tranche, per the gap noted above). The two 
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">4.3 Stage 3, Structure — work log</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">3.3 · Stage 3 · Organize</h3></summary>
 
 <div style="margin-left:1.5em">
 
@@ -610,7 +601,7 @@ Fills in as each Stage 3 item (section 0.3) is actually done.
 
 **Result: one block, in one file.** The 66 in-scope files were swept for comment lines that look like MATLAB statements rather than prose — assignments, `for`/`if`/`end`, function-call statements, anything ending in `;` — then every hit was read in context. That produced 363 candidate non-header comment lines plus 101 statement-shaped header lines, and on inspection all but one are prose annotations, `Inputs`/`Output` blocks, `%%` section headers, or header-doc usage examples (which do not count as commented-out code). The detector is not blind: run unchanged over the excluded `Bill's old code/` it flags 389 lines across 19 files, which is what genuinely commented-out ancestral code looks like. **Verdict split: 0 superseded, 0 scaffolding, 1 alternative, 0 unfinished, 0 unknown.** Nothing was edited; the single conversion is item 0.3.10's job.
 
-Notable, and worth the user's attention: section 1 measured **113 of 5744 lines** as commented-out code, and only one is real. Two things explain the gap. First, that 113 was an unvetted "looks like code" line count — re-running a comparably loose heuristic on the repo today gives ~155 hits, essentially all of them header-doc usage-example lines (`%   phi = segmentation.content_similarity_matrix(...)`), which Stage 1 *added* to every file, so the number went up while the real content went to zero. Second, `canon` strips comments, so `check_stage1` cannot see a commented-out line being deleted — a Stage 1 tranche could have removed such lines and still passed. Which of the two accounts for how much is not recoverable from the code, and per this item's method note the git history was deliberately not consulted. No bug was found; nothing added to section 0.4.
+Notable, and worth the user's attention: section 2 measured **113 of 5744 lines** as commented-out code, and only one is real. Two things explain the gap. First, that 113 was an unvetted "looks like code" line count — re-running a comparably loose heuristic on the repo today gives ~155 hits, essentially all of them header-doc usage-example lines (`%   phi = segmentation.content_similarity_matrix(...)`), which Stage 1 *added* to every file, so the number went up while the real content went to zero. Second, `canon` strips comments, so `check_stage1` cannot see a commented-out line being deleted — a Stage 1 tranche could have removed such lines and still passed. Which of the two accounts for how much is not recoverable from the code, and per this item's method note the git history was deliberately not consulted. No bug was found; nothing added to section 0.4.
 
 | block | file:lines | what the surrounding code says it was for | verdict | action taken |
 |---|---|---|---|---|
@@ -758,7 +749,7 @@ Three things this pins down, all relevant to B2.2. The four failing fields are e
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">4.4 Stage 4, Bugs — work log</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">3.4 · Stage 4 · Bugs</h3></summary>
 
 <div style="margin-left:1.5em">
 
@@ -769,11 +760,11 @@ Bugs discovered while doing stage 1/2/3 are recorded in section 0.4 as they're f
 </details>
 
 <details style="margin:0.7em 0 0.7em 1.5em">
-<summary><h3 style="display:inline; margin:0; font-size:1.05em">4.5 Stage 5, Speed — work log</h3></summary>
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">3.5 · Stage 5 · Speed</h3></summary>
 
 <div style="margin-left:1.5em">
 
-One entry per section 0.5 item, filled in as it's measured. Each entry carries all of: the re-triage verdict (does the item still exist after stages 3 and 4, or did a structural change or bug fix already dissolve it), the **before** timing with input size and repeat count, the golden-output result (bit-identical for a Proven item, inside the agreed tolerance for a Perturbing item, tolerance quoted), and the **after** timing on the same input and repeats.
+One entry per section 0.5 item, filled in as it's measured. Each entry carries all of: the re-triage verdict (does the item still exist after stages 3 and 4, or did an organizational change or bug fix already dissolve it), the **before** timing with input size and repeat count, the golden-output result (bit-identical for a Proven item, inside the agreed tolerance for a Perturbing item, tolerance quoted), and the **after** timing on the same input and repeats.
 
 **A measured null result is a completed item.** If the speedup didn't justify the diff, the change was reverted — log the numbers that said so. For an item still marked Unprofiled, the profile *is* the item: log where the time actually went, then update its status to Proven or Perturbing with a number attached (re-tiering if the measurement changes the priority call), or close it here.
 
@@ -782,6 +773,17 @@ Timing and profiling runs execute the real pipeline, so they fall outside the st
 | item | re-triage | before | after | output check | kept? |
 |---|---|---|---|---|---|
 |  |  |  |  |  |  |
+
+</div>
+
+</details>
+
+<details style="margin:0.7em 0 0.7em 1.5em">
+<summary><h3 style="display:inline; margin:0; font-size:1.05em">3.6 · Stage 6 · Closing</h3></summary>
+
+<div style="margin-left:1.5em">
+
+One entry, filled in once, when 0.6 is actually run — not per sub-item, since it's one gate, not a findings list. States the result of each of the four checks (0.6.1–0.6.4), verbatim checker output for the two mechanical ones, and any discrepancy found and how it was resolved before the plan was called complete.
 
 </div>
 

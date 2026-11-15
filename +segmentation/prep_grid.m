@@ -17,7 +17,8 @@ function [patches, achrom, achrom_norm] = prep_grid(region_image, patch_size, cf
 %     region_image - texture-region image, [H x W x 3] (H, W each a multiple of
 %                    patch_size).
 %     patch_size    - patch side length in pixels.
-%     cfg           - config struct (uses cfg.norm.target_mean / target_contrast).
+%     cfg           - config struct (uses cfg.norm.target_mean / target_contrast,
+%                     cfg.color_rotation, and cfg.bill_compat for Bill's rotation).
 %
 %   Outputs (each a [H/patch_size x W/patch_size] cell, indexed by grid coordinate
 %   {grid_row, grid_col})
@@ -31,6 +32,11 @@ function [patches, achrom, achrom_norm] = prep_grid(region_image, patch_size, cf
 
     target_mean = cfg.norm.target_mean;
     target_contrast = cfg.norm.target_contrast;
+    rotation = cfg.color_rotation;
+    if cfg.bill_compat                     % TEMPORARY: Bill's LMS->ABR rotation (config.m)
+        S = load(fullfile(cfg.paths.models, 'bill_lms2abr.mat'), 'coeff');
+        rotation = S.coeff;
+    end
     n_grid_rows = size(region_image, 1) / patch_size;      % patch rows
     n_grid_cols = size(region_image, 2) / patch_size;      % patch cols
     patches     = cell(n_grid_rows, n_grid_cols);
@@ -42,7 +48,7 @@ function [patches, achrom, achrom_norm] = prep_grid(region_image, patch_size, cf
             cols = (grid_col - 1) * patch_size + (1:patch_size);
             patch = vislab.lib.ptch_norm( ...
                 region_image(rows, cols, :), target_mean, target_contrast, 3, 3);
-            patch = vislab.nat_stat_bayes.apply_color_rotation(patch);   % shared LMS->ABR transform
+            patch = vislab.nat_stat_bayes.apply_color_rotation(patch, rotation);  % LMS->ABR
             patches{grid_row, grid_col} = patch;
             achrom{grid_row, grid_col}  = patch(:, :, 1);
             achrom_norm{grid_row, grid_col} = ...

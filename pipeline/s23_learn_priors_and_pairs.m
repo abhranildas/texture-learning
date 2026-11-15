@@ -32,13 +32,7 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
     maxval = cfg.natural.max_val;
     patch_size = cfg.patch.size / ecc;   % patch size at this eccentricity
 
-    if cfg.optics.apply
-        xform_file = 'cps_lms2abr_otf.mat';
-    else
-        xform_file = 'cps_lms2abr.mat';
-    end
-    s = load(fullfile(cfg.paths.data_root, xform_file), 'coeff');   % shared lab LMS->ABR transform
-    coeff = s.coeff;
+    coeff = cfg.color_rotation;          % LMS->ABR rotation from s1, for this optics setting
 
     files  = list_natural_images(cfg);
     n_prior = ceil(cfg.natural.target_isolated_patches   / numel(files));  % isolated patches/image
@@ -77,8 +71,9 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
     end
     if do_save
         save(prior_path, '-struct', 'P');            % fields ea,Na,...,coeff (see finalize_priors)
-        color = cfg.features.color;    % saved so s4/s5 can catch a stale-mode reuse
-        save(pairs_path, 'ptchn', 'ptchf', 'pcnt', 'color');
+        color  = cfg.features.color;   % saved so s4/s5 can catch a stale-mode reuse
+        optics = cfg.optics.apply;     % (see load_patch_pairs)
+        save(pairs_path, 'ptchn', 'ptchf', 'pcnt', 'color', 'optics');
         fprintf('s23: saved priors to %s and %d near/far pairs (ecc %d, color=%d) to %s\n', ...
             prior_path, pcnt, ecc, cfg.features.color, pairs_path);
     else

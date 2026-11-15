@@ -16,9 +16,9 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
 %     neighbor_distance - distance (pixels) identifying a neighbouring pair (= patch_size).
 %     dv                - struct of trained DV handles: dv.h, dv.e, dv.c, dv.b, dv.bc.
 %
-%   Note: per-pair DVs use cfg.gtr.power_suppress (b0=16), matching
-%   neighbor_far_responses and content_similarity_matrix (cfg.dv.power_suppress,
-%   also 16 since Geisler unified b0 -- 2026-07).
+%   Note: per-pair DVs use cfg.gtr.power_suppress (b0), matching
+%   neighbor_far_responses and content_similarity_matrix (cfg.dv.power_suppress;
+%   both 5e-5, Bill's current b0).
 %
 %   See also SEGMENTATION.PREP_GRID, SEGMENTATION.CONTENT_FEATURES,
 %   SEGMENTATION.CONTENT_DV_PAIR, SEGMENTATION.CONTENT_SIMILARITY_MATRIX
@@ -26,10 +26,11 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
     n = numel(patch_x);
     power_suppress = cfg.gtr.power_suppress;
     spot_dims = cfg.features.spot_dims;     % [1 13 14]
-    edge_dims = cfg.features.edge_dv_dims;  % [5 9 10]
+    edge_dims = cfg.features.edge_dv_dims;  % [5 9 10 11]
 
     % prep every patch once (extract + normalize + rotate; raw and contrast-norm gray)
     [patches, achrom, achrom_norm] = segmentation.prep_grid(region_image, patch_size, cfg);
+    windows = segmentation.border_windows(region_image, patch_size, cfg);  % [] unless border_center
     if cfg.dv.contrast_normalize                            % gray fed to edge/border DVs
         edge_channel = achrom_norm;
     else
@@ -63,9 +64,8 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
             rc = segmentation.content_dv_pair(patch_features{patch_x(i), patch_y(i)}, ...
                 patch_features{patch_x(j), patch_y(j)}, ...
                 patch_size, power_suppress, dv.h, dv.e, dv.c, spot_dims, edge_dims);
-            border = vislab.nat_stat_bayes.dv_border(edge_channel{patch_x(i), patch_y(i)}, ...
-                edge_channel{patch_x(j), patch_y(j)}, ...
-                patch_size, dir, cfg.dv.sd1, cfg.dv.nsd1, false);
+            border = segmentation.border_cue(cfg, edge_channel, windows, ...
+                patch_x(i), patch_y(i), patch_x(j), patch_y(j), dir);
             rb = dv.b(border(1:2)');
 
             % [content, border] ordering (Geisler-confirmed; matches s5 dbndbc training)

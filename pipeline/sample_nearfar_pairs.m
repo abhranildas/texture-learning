@@ -9,7 +9,7 @@ function [ptchn, ptchf] = sample_nearfar_pairs(img, n_samples, patch_size, cfg)
 %     img        - [H x W x 3] LMS image already at the target eccentricity.
 %     n_samples  - number of reference patches to sample (each yields 2 near + 2 far).
 %     patch_size - patch size at that eccentricity (cfg.patch.size / ecc), in pixels.
-%     cfg        - config struct (normalization, cfg.features.color).
+%     cfg        - config struct (see pair_patch_prep).
 %
 %   Outputs
 %     ptchn, ptchf - pair tensors [patch_size x 2*patch_size x nch x (2*n_samples)];
@@ -17,23 +17,17 @@ function [ptchn, ptchf] = sample_nearfar_pairs(img, n_samples, patch_size, cfg)
 %                    channel only, cheaper). ptchn/ptchf are the .mat variable names
 %                    saved by s23_learn_priors_and_pairs and must not be renamed.
 %
-%   Each half is normalized then rotated LMS->ABR via vislab.nat_stat_bayes.patch_to_abr
-%   (colour) or ...patch_to_a (achromatic-only -- keeps the pairs file and downstream
+%   Each half is normalized then rotated LMS->ABR by pair_patch_prep (all three
+%   channels in colour mode, else only A -- keeps the pairs file and downstream
 %   stages cheap when nobody asked for colour).
 %
-%   See also SAMPLE_ISOLATED_PATCHES, S23_LEARN_PRIORS_AND_PAIRS, PAIR_RESPONSES
+%   See also PAIR_PATCH_PREP, SAMPLE_ISOLATED_PATCHES, S23_LEARN_PRIORS_AND_PAIRS, PAIR_RESPONSES
 
     patch_size2 = 2 * patch_size;
-    target_mean     = cfg.norm.target_mean;
-    target_contrast = cfg.norm.target_contrast;
     [szx, szy, ~] = size(img);
     dcrit = szx / 4;                 % far-pair distance criterion
 
-    if cfg.features.color
-        nch = 3;  prep = @(p) vislab.nat_stat_bayes.patch_to_abr(p, target_mean, target_contrast);
-    else
-        nch = 1;  prep = @(p) vislab.nat_stat_bayes.patch_to_a(p, target_mean, target_contrast);
-    end
+    [prep, nch] = pair_patch_prep(cfg);
 
     ptchn = zeros(patch_size, patch_size2, nch, 2*n_samples);
     ptchf = zeros(patch_size, patch_size2, nch, 2*n_samples);

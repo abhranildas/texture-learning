@@ -1,14 +1,16 @@
-function cfg = config(color)
+function cfg = config(color, optics, test_optics)
 % CONFIG  Central configuration for the texture-learning pipeline.
 %   cfg = config()
 %   cfg = config(color)
+%   cfg = config(color, optics)
+%   cfg = config(color, optics, test_optics)
 %
 %   Returns a struct of data paths, optical/physical constants, patch geometry,
 %   normalization defaults, and the task-feature definitions. Pipeline stage
-%   functions take cfg and may override stage-specific fields. Call config(false)
-%   or config(true) again (e.g. in run_demo, after the user picks a mode) to get a
-%   cfg with the other setting -- cheaper and less error-prone than mutating
-%   cfg.features.color and re-deriving by hand.
+%   functions take cfg and may override stage-specific fields. To switch colour or
+%   optics, call config again with the other setting (e.g. in run_demo, after the
+%   user picks a mode) rather than mutating cfg.features.color or cfg.optics.apply:
+%   other fields (file names, the colour rotation) are derived from them here.
 %
 %   EDIT cfg.paths.data_root below if the shared data store (vislab-common/data)
 %   is not next to this repo.
@@ -18,6 +20,16 @@ function cfg = config(color)
 %          (chromatic B/R spot features included); false the achromatic-only
 %          model. Everything downstream of it (spot_dims, dv_dims) is derived
 %          at the bottom of this file, so this is the only switch to set.
+%   optics logical, optional (default true). True applies the eye-optics filter
+%          to every image, in training (natural images, s1-s5) and in testing
+%          (texture sheets and GTR images, s6-s7). Each trained file is tagged by
+%          it ("_otf" when true; the bins are AHEO_ vs AHE_), so the two models
+%          sit side by side in data/models and each run loads its own.
+%   test_optics  logical, optional (default = optics). Whether the optics filter
+%          is applied to the test images (texture sheets, GTR and natural images
+%          being segmented), separately from the model, which `optics` picks. Set
+%          it different from `optics` only to test a model on images filtered
+%          differently from its training images.
 % Output
 %   cfg  struct of configuration fields, grouped as
 %          .paths     folder locations (char)
@@ -34,7 +46,9 @@ function cfg = config(color)
 %
 % See also RUN_DEMO, SETUP, S1_LEARN_COLOR_TRANSFORM, S7_SEGMENT_GTR
 
-    if nargin < 1 || isempty(color), color = true; end
+    if nargin < 1 || isempty(color),  color  = true; end
+    if nargin < 2 || isempty(optics), optics = true; end
+    if nargin < 3 || isempty(test_optics), test_optics = optics; end
     repo_root = fileparts(mfilename('fullpath'));
 
     % --- data locations ---
@@ -56,7 +70,32 @@ function cfg = config(color)
     cfg.optics.ppd            = 60;      % pixels/deg
     cfg.optics.pupil_diameter = 4;       % mm
     cfg.optics.wavelength     = 550;     % nm
-    cfg.optics.apply          = true;    % apply optics (the "_otf" / filter == 1 path)
+    cfg.optics.apply          = optics;  % training images, and which model files (see Inputs)
+    cfg.optics.apply_test     = test_optics;  % test images (see Inputs)
+    if optics
+        cfg.optics.file_tag = '_otf';     % marks files trained with the optics on
+    else
+        cfg.optics.file_tag = '';
+    end
+
+    % --- LMS->ABR colour rotation (stage s1 output), learned from natural images
+    %     with or without the optics. Shared across the lab in data_root. Missing
+    %     only before s1 has been run for this optics setting. ---
+    cfg.paths.color_rotation = fullfile(cfg.paths.data_root, ...
+        ['cps_lms2abr' cfg.optics.file_tag '.mat']);
+    cfg.color_rotation = load_if_present(cfg.paths.color_rotation, 'coeff', ...
+        's1_learn_color_transform');
+
+    % --- TEMPORARY Bill-compatibility switch (docs/segmentation-parity.md). true
+    %     reproduces Bill's current code on the texture/GTR path:
+    %       1. his optics-filter frequency units (aply_otf uses u = k/ppd, not
+    %          k*ppd/N; reported to him as a likely bug), via otf_ppd;
+    %       2. his LMS->ABR colour rotation (data/models/bill_lms2abr.mat, written by
+    %          tools/import_bill_model) instead of cfg.color_rotation, in
+    %          segmentation.prep_grid.
+    %     Natural-image training (s1-s5) does not use it. Remove once Bill settles
+    %     the optics question and the model is retrained. ---
+    cfg.bill_compat = true;
 
     % --- calibrated natural-image dataset (for learning priors: stages s1, s2) ---
     %   sets are file-name stems inside cfg.paths.natural_images.
@@ -91,14 +130,19 @@ function cfg = config(color)
     cfg.norm.target_contrast = 0.25;
 
     % --- decision-variable computation params (content-similarity / mk_phi context) ---
-    %   power_suppress is the weak Fourier-power suppression exponent (beta). Geisler
-    %   unified the content-similarity value (was 10) with DV training in 2026-07, so
-    %   this and cfg.gtr.power_suppress below are both 16 and expected to stay equal.
-    cfg.dv.power_suppress     = 16;
+    %   power_suppress is the weak Fourier-power suppression constant (beta, Bill's b0).
+    %   Bill's current model uses 5e-5 at every eccentricity (his load_b0_nat.m; was 16,
+    %   and 10 for content similarity before that). This and cfg.gtr.power_suppress
+    %   below are expected to stay equal.
+    cfg.dv.power_suppress     = 5e-5;
     cfg.dv.edge_thresh        = 50;    % gradient threshold, image units (edge-count feature)
     cfg.dv.sd1  = 1;  cfg.dv.nsd1 = 3; % 1st-derivative steerable kernel (edges)
     cfg.dv.sd2  = 1;  cfg.dv.nsd2 = 3; % 2nd-derivative steerable kernel (bars)
     cfg.dv.contrast_normalize = true;  % contrast-normalize before edge features
+    cfg.dv.border_center      = true;  % neighbour border cue from one patch-sized window
+                                       % centred on the shared border (Bill's centerflg = 1,
+                                       % Rb12); false = the two joined patches (Rb). The
+                                       % border bound itself is trained on Rb either way.
 
     % --- GTR images / segmentation experiments (stages s6, s7) ---
     cfg.gtr.szp          = 10;    % image size in patches (10x10 = 100 patches)
@@ -106,8 +150,20 @@ function cfg = config(color)
     cfg.gtr.seed_radius  = 1.0;   % region-seed radius as fraction of max
     cfg.gtr.coverage     = 1.0;   % fraction of the grid filled by regions
     cfg.gtr.dcrit        = 7.0;   % min separation (patches) for a "far" pair
-    cfg.gtr.power_suppress = 16;  % weak-power beta for the per-pair DVs
+    cfg.gtr.power_suppress = 5e-5; % weak-power beta for the per-pair DVs
                                   % (kept equal to cfg.dv.power_suppress)
+
+    % --- fixed segmentation parameters, shared by all images (segmentation.segment_image):
+    %       method        per-image rule for learning gcopt/wmopt ('bc', see
+    %                     segmentation.learn_image_similarity)
+    %       group_offset  added to the learned gcopt (paper gamma_l offset; Bill's gl)
+    %       confidence    confidence criterion (gamma_c; Bill's gcc)
+    %       merge         region-merge criterion (gamma_r; Bill's gr)
+    %     Chosen by s7_segment_gtr; the shipped values are Bill's (tools/import_bill_model).
+    %     Missing only before s7 has saved them for this optics setting. ---
+    cfg.paths.segmentation_params = fullfile(cfg.paths.models, ...
+        ['segmentation_params' cfg.optics.file_tag '.mat']);
+    cfg.segment = load_if_present(cfg.paths.segmentation_params, 'params', 's7_segment_gtr');
 
     % --- reproducibility ---
     cfg.seed = 0;
@@ -128,7 +184,7 @@ function cfg = config(color)
         'bar count','bar mag','bar ori','bar mag x ori', ...
         'cs ratio small','cs linear small','cs linear large' };
     cfg.features.edge_dims    = [5 7 9 10]; % edge/bar features computed by dv_edge_hist
-    cfg.features.edge_dv_dims = [5 9 10];   % subset fed to the content edge DV (skips feature 7)
+    cfg.features.edge_dv_dims = [5 9 10 11]; % fed to the content edge DV (Bill's current ne)
 
     % --- colour extension (docs/color-extension-plan.md). Achromatic spot = A pixel +
     %     CS-small + CS-large (the published model); chromatic spot = B (blue-yellow) +
@@ -145,4 +201,17 @@ function cfg = config(color)
     end
     cfg.features.spot_dims = [cfg.features.spot_achr_dims, cfg.features.spot_chrom_dims];
     cfg.features.dv_dims   = sort([cfg.features.spot_dims, cfg.features.edge_dv_dims]);
+end
+
+function value = load_if_present(file, name, made_by)
+% Variable `name` from `file`, or [] with a warning if the file does not exist yet
+% (it is made by the stage `made_by`, which itself needs a cfg to run).
+    if isfile(file)
+        S = load(file, name);
+        value = S.(name);
+    else
+        [~, f, e] = fileparts(file);
+        warning('config:missingFile', '%s not found; run %s to make it.', [f e], made_by);
+        value = [];
+    end
 end

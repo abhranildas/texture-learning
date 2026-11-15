@@ -60,6 +60,11 @@ setup;
 % button if it doesn't take.)
 set(0, 'defaultfigurewindowstyle', 'docked');
 
+% --- Eye-optics filter, for training and testing alike (config's `optics` input).
+%     false uses (or, in full mode, trains) the model without the optics filter;
+%     its files sit beside the optics-on ones in data/models. ---
+optics = true;
+
 % --- 0. Choose the demo mode ('quick' or 'full') ---
 %   'quick': fast -- skips training (stages 1-5), uses the shipped pre-trained bounds
 %            for whichever colour/achromatic mode is asked for (see below).
@@ -88,7 +93,7 @@ if strcmp(demo_type, 'full')
              '[y/n, default y]: '], 's')));
         if isempty(color_reply), color_reply = 'y'; end
     end
-    cfg = config(strcmp(color_reply, 'y'));
+    cfg = config(strcmp(color_reply, 'y'), optics);
 
     fprintf('\n--- Running Pipeline Stages 1-5: Training the Model ---\n');
 
@@ -146,11 +151,11 @@ else
         if isempty(color_reply), color_reply = 'y'; end
     end
     quick_color = strcmp(color_reply, 'y');
-    cfg = config(quick_color);
+    cfg = config(quick_color, optics);
 
     fprintf('\nSkipping Stages 1-5 (Training). Using the pre-built shipped models.\n');
     if ~exist(fullfile(cfg.paths.models, decision_bounds_filename(cfg, 1)), 'file')
-        cfg_other = config(~quick_color);
+        cfg_other = config(~quick_color, optics);
         if exist(fullfile(cfg_other.paths.models, decision_bounds_filename(cfg_other, 1)), 'file')
             if quick_color
                 fprintf([ ...
@@ -232,33 +237,24 @@ if cfg.features.color
 else
     itype = 3;  db_name = 'Brodatz';
 end
-n_gtr_images = 2;   % GTR images to average over (small, for a quick demo)
+n_gtr_images = 3;   % GTR images to segment and show (small, for a quick demo)
 
 fprintf('\n--- Stage 7: GTR Segmentation (%s) ---\n', db_name);
-fprintf('Builds GTR (grown-texture-region) images from %s source textures, learns a\n', db_name);
-fprintf('per-image grouping criterion and mutual-similarity weight (method NCB), then performs\n');
-fprintf('the actual region grouping and segmentation of the GTR images.\n');
-try
-    out7 = s7_segment_gtr(cfg, 'ncb', itype, ecc, n_gtr_images);
-catch err
-    rethrow(err);
-end
-
-% nregs5_ave is the fraction of fully-correct regions over a 2-D sweep of the two
-% grouping parameters: merge criterion (mc) down the rows, grouping-criterion
-% distance (dgc) across the columns. Report the peak and where it sits.
-[best_frac, best_idx] = max(out7.nregs5_ave, [], 'all', 'linear');
-[merge_idx, dgc_idx] = ind2sub(size(out7.nregs5_ave), best_idx);
-fprintf('\nStage 7 Result: peak fully-correct regions = %.1f%%\n', 100 * best_frac);
-fprintf('        at merge = %.2f, dgc = %.2f\n', out7.mc(merge_idx), out7.dgc(dgc_idx));
-plot_stage7(cfg, out7, 'ncb', itype, ecc);
+fprintf('Builds GTR (grown-texture-region) images from %s source textures. For each, learns\n', db_name);
+fprintf('a grouping criterion and mutual-similarity weight from that image alone (proximity\n');
+fprintf('as ground truth), then groups its patches into regions at the fixed parameters\n');
+fprintf('chosen by stage 7 over many GTR images (offset %.2f, confidence %.2f, merge %.2f).\n', ...
+    cfg.segment.group_offset, cfg.segment.confidence, cfg.segment.merge);
+n_correct = plot_stage7(cfg, itype, ecc, n_gtr_images);
+fprintf('\nStage 7 Result: %.0f%% of regions segmented exactly right (%d images)\n', ...
+    100 * mean(n_correct) / cfg.gtr.n_regions, n_gtr_images);
 drawnow;
 
 % --- 4. apply the same segmentation to a natural image (self-supervised, no ground truth) ---
 fprintf('\n--- Stage 8: Natural-Image Segmentation ---\n');
 fprintf('Running the same self-supervised segmentation (64x64 patches) on a natural image.\n');
 fprintf('It has no ground-truth regions, so gcopt/wmopt are still learned from proximity,\n');
-fprintf('and the region-merge parameters are carried over from the Stage 7 GTR sweep.\n');
-plot_stage8_natural(cfg, out7, 'ncb', ecc);
+fprintf('and the fixed grouping parameters are the same as in Stage 7.\n');
+plot_stage8_natural(cfg, ecc);
 
 fprintf('\nDemo Complete! Check the generated figure windows.\n');

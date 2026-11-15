@@ -8,7 +8,7 @@ function f = prior_filename(cfg, ecc)
 %   own file. The "_otf" tag marks optics-applied priors.
 %
 %   Inputs
-%     cfg - config struct (uses cfg.optics.apply).
+%     cfg - config struct (uses cfg.optics.file_tag).
 %     ecc - eccentricity downsample factor (1, 2, 4, 8).
 %
 %   Output
@@ -16,10 +16,5 @@ function f = prior_filename(cfg, ecc)
 %
 %   See also DECISION_BOUNDS_FILENAME, S23_LEARN_PRIORS_AND_PAIRS, S4_OPTIMIZE_BINS
 
-    if cfg.optics.apply
-        base = 'priors_abr_mo13_mo23_cs33_otf';
-    else
-        base = 'priors_abr_mo13_mo23_cs33';
-    end
-    f = sprintf('%s_ecc_%d.mat', base, ecc);
+    f = sprintf('priors_abr_mo13_mo23_cs33%s_ecc_%d.mat', cfg.optics.file_tag, ecc);
 end

@@ -79,12 +79,19 @@ function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
             error('load_texture_images:badItype', 'itype must be 1-6, got %g.', itype);
     end
 
+    % texture sheets are test images, so cfg.optics.apply_test decides the optics.
+    % They are cfg.patch.image_size wide when the optics are applied (before any
+    % eccentricity downsampling), which sets the optics ppd under cfg.bill_compat
+    cfg_otf = cfg;
+    cfg_otf.optics.apply = cfg.optics.apply_test;
+    cfg_otf.optics.ppd = otf_ppd(cfg, cfg.patch.image_size);
+
     imgr = zeros(sz, sz, nimg);
     imgg = zeros(sz, sz, nimg);
     imgb = zeros(sz, sz, nimg);
     for k = 1:nimg
         flags = cfg.textures.(dbnames{k});       % ingestion flags for this database
-        lms = vislab.nat_stat_bayes.source_to_lms(files{k}, cfg, struct( ...
+        lms = vislab.nat_stat_bayes.source_to_lms(files{k}, cfg_otf, struct( ...
             'gray', flags.gray, 'gamma', flags.gamma, 'resize_pertex', flags.resize, 'ecc', ecc));
         imgr(:, :, k) = lms(:, :, 1);
         imgg(:, :, k) = lms(:, :, 2);

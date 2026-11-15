@@ -11,8 +11,9 @@ function coeff = s1_learn_color_transform(cfg, autosave)
 %   1-deg patches, mean-normalize, and accumulate the LMS pixel values. Then run
 %   PCA to obtain the rotation into the opponent "ABR" axes (achromatic,
 %   blue-yellow, red-green) and save the 3x3 matrix. This LMS->ABR transform is
-%   lab-global, so it is written to the shared vislab-common/data store (as
-%   cps_lms2abr_otf.mat) where the other lab projects also read it from.
+%   lab-global, so it is written to the shared vislab-common/data store
+%   (cfg.paths.color_rotation: cps_lms2abr_otf.mat with the optics on,
+%   cps_lms2abr.mat without) where the other lab projects also read it from.
 %
 %   Run `setup` first. Requires natural images in cfg.paths.natural_images and
 %   the Statistics Toolbox (pca).
@@ -52,15 +53,10 @@ function coeff = s1_learn_color_transform(cfg, autosave)
 
     coeff = pca(lms_pixels);                          % columns = principal (ABR) axes
 
-    if cfg.optics.apply
-        xform_file = 'cps_lms2abr_otf.mat';
-    else
-        xform_file = 'cps_lms2abr.mat';
-    end
-    out_path = fullfile(cfg.paths.data_root, xform_file);   % lab-global; lives in shared store
+    out_path = cfg.paths.color_rotation;      % lab-global; lives in the shared store
     if nargin < 2 || isempty(autosave)
         reply = input(sprintf( ...
-            's1: Save LMS->ABR rotation to disk and overwrite %s? (y/n): ', xform_file), 's');
+            's1: Save LMS->ABR rotation to disk and overwrite %s? (y/n): ', out_path), 's');
         do_save = strcmpi(reply, 'y');
     else
         do_save = autosave;

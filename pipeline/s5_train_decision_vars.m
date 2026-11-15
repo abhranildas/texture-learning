@@ -54,22 +54,15 @@ function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
     power_suppress = 16;                   % weak-power suppression for training
     edge_thresh = cfg.dv.edge_thresh;
     spot_dims = cfg.features.spot_dims;    % [1 13 14] achromatic-only, +[2 3] with colour
-    edge_dims = cfg.features.edge_dv_dims; % [5 9 10]
+    edge_dims = cfg.features.edge_dv_dims; % [5 9 10 11]
 
     feature_list = zeros(1, 20);  feature_list(cfg.features.dv_dims) = 1;
     cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
 
     [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds( ...
         cstat, eccb, double(cfg.optics.apply));
-    % (LMS->ABR rotation is auto-loaded by apply_color_rotation from the shared store)
 
-    pp = load(fullfile(cfg.paths.stimuli, sprintf('patch_pairs_ecc%d.mat', ecc)), ...
-        'ptchn', 'ptchf', 'color');
-    if ~isfield(pp, 'color') || pp.color ~= cfg.features.color
-        error('s5_train_decision_vars:pairsModeMismatch', ...
-        'patch_pairs_ecc%d.mat does not match cfg.features.color=%d -- rerun s23_learn_priors_and_pairs.', ...
-            ecc, cfg.features.color);
-    end
+    pp = load_patch_pairs(cfg, ecc);      % errors if built for another colour/optics mode
 
     % response matrices (columns given by COL: spot/edge/power/border), rows = kept pairs
     [near, ~, col] = pair_responses(pp.ptchn, bin_bounds, n_bins, feature_list, ...

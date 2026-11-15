@@ -34,9 +34,7 @@ function plot_stage1(cfg, coeff)
     % LMS->ABR rotation: use the learned one if given (full mode), else the shipped
     % one from disk (quick mode).
     if nargin < 2 || isempty(coeff)
-        if cfg.optics.apply, fname = 'cps_lms2abr_otf.mat'; else, fname = 'cps_lms2abr.mat'; end
-        s = load(fullfile(cfg.paths.data_root, fname), 'coeff');
-        coeff = s.coeff;
+        coeff = cfg.color_rotation;
         use_all = false;                         % quick mode: single image
     else
         use_all = true;                          % full mode: all training images

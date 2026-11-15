@@ -73,9 +73,7 @@ function plot_stage1b_gradients(cfg, coeff)
     % LMS->ABR rotation: use the just-learned one if given (full mode), else the
     % shipped one from disk (quick mode). Quick mode also restricts to ONE image.
     if nargin < 2 || isempty(coeff)
-        if cfg.optics.apply, fname = 'cps_lms2abr_otf.mat'; else, fname = 'cps_lms2abr.mat'; end
-        s = load(fullfile(cfg.paths.data_root, fname), 'coeff');
-        coeff = s.coeff;
+        coeff = cfg.color_rotation;
         files = files(1);            % quick mode: a single image
     end
 

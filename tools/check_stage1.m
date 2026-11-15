@@ -1,6 +1,6 @@
-function match = check_tier_a(old_file, new_file, renames)
-% CHECK_TIER_A  Verify a Tier-A readability edit changed nothing but style.
-%   match = check_tier_a(old_file, new_file, renames)
+function match = check_stage1(old_file, new_file, renames)
+% CHECK_STAGE1  Verify a Stage-1 readability edit changed nothing but style.
+%   match = check_stage1(old_file, new_file, renames)
 %
 % Inputs
 %   old_file  path to the pre-edit .m file, char/string

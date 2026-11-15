@@ -43,6 +43,7 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
     % prep every patch once (extract + normalize + rotate; raw gray for the power DV,
     % contrast-normalized gray for the edge/border DVs)
     [patches, achrom, achrom_norm] = segmentation.prep_grid(pimg, patch_size, cfg);
+    windows = segmentation.border_windows(pimg, patch_size, cfg);   % [] unless border_center
 
     % featurize each patch once (power spectrum + spot/edge histograms); pair_cb below
     % just combines them. Edge features use achrom_norm (contrast-normalized), matching pair_cb.
@@ -55,21 +56,22 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
 
             % near — lower neighbour (dir 1)
             scnt = scnt + 1;
-            [rcn(scnt), rbn(scnt)] = pair_cb(i, j, i+1, j, 1);
+            [rcn(scnt), rbn(scnt)] = pair_cb(i, j, i+1, j, 1, windows);
             same_near(scnt) = map(i, j) == map(i+1, j);
             rmn(scnt) = rho(ref_num, i*npy + j);
 
             % near — right neighbour (dir 2)
             scnt = scnt + 1;
-            [rcn(scnt), rbn(scnt)] = pair_cb(i, j, i, j+1, 2);
+            [rcn(scnt), rbn(scnt)] = pair_cb(i, j, i, j+1, 2, windows);
             same_near(scnt) = map(i, j) == map(i, j+1);
             rmn(scnt) = rho(ref_num, (i-1)*npy + j+1);
 
-            % two far pairs (dir 2, matching the original's leftover dir)
+            % two far pairs (dir 2, matching the original's leftover dir). Not adjacent,
+            % so always the two-patch border cue (no windows), as in Bill's code.
             for f = 1:2
                 dcnt = dcnt + 1;
                 [x2, y2] = far_patch();
-                [rcf(dcnt), rbf(dcnt)] = pair_cb(i, j, x2, y2, 2);
+                [rcf(dcnt), rbf(dcnt)] = pair_cb(i, j, x2, y2, 2, []);
                 same_far(dcnt) = map(i, j) == map(x2, y2);
                 rmf(dcnt) = rho(ref_num, (x2-1)*npy + y2);
             end
@@ -80,11 +82,10 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
                'same_near', same_near, 'same_far', same_far, 'ncnt', ncnt);
 
     % ---- nested helper: content + border DV for the pair at grid (ra,ca)-(rb2,cb) ----
-    function [rc, rb] = pair_cb(ra, ca, rb2, cb, dir)
+    function [rc, rb] = pair_cb(ra, ca, rb2, cb, dir, border_wins)
         rc = segmentation.content_dv_pair(content_feats{ra, ca}, content_feats{rb2, cb}, ...
             patch_size, power_suppress, dv.h, dv.e, dv.c, spot_dims, edge_dims);
-        border = vislab.nat_stat_bayes.dv_border(achrom_norm{ra, ca}, achrom_norm{rb2, cb}, ...
-            patch_size, dir, cfg.dv.sd1, cfg.dv.nsd1, false);
+        border = segmentation.border_cue(cfg, achrom_norm, border_wins, ra, ca, rb2, cb, dir);
         rb = dv.b(border(1:2)');
     end
 
