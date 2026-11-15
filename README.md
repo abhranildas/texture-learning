@@ -5,6 +5,11 @@ Code for **"Proximity as a Ground-Truth Proxy for Training Texture Discriminatio
 
 ![Sample Segmentation](sample_segment.png)
 
+## Authors
+
+- **Wilson S. Geisler** (w.geisler@utexas.edu) wrote all of the original code.
+- **Abhranil Das** (abhranil@abhranil.space) reorganized the code into this repository.
+
 ## What it does
 
 Telling whether two image patches are the *same* or *different* texture normally needs labelled ground
@@ -45,13 +50,13 @@ cfg = config;    % paths + parameters; edit cfg.paths.data_root if vislab-common
 
 ## Quick demo
 
-The `run_demo.m` script demonstrates the entire model lifecycle. By changing the `demo_type` variable at the top of the script, you can run it in two modes:
+The `run_demo.m` script demonstrates the entire model lifecycle. It asks which of two modes to run, whether to include colour, and (via the `optics` setting at the top of the script) whether to use the eye-optics filter, which it applies to both training and testing:
 
 - **`quick` mode**: Skips the expensive training phase (Stages 1-5) and uses the pre-trained models shipped in `data/models/`. It plots the learned parameters, and then evaluates the model (Stages 6-7) on a small set of Grown-Texture-Region (GTR) images. The evaluation takes a few minutes to run. It also asks whether to include colour (see Colour extension below) and runs whichever mode you ask for — falling back, with a notice, to whichever mode's file actually is shipped if that one is missing.
 - **`full` mode**: Re-trains the model from scratch (Stages 1-5) before evaluating. Before training starts, the script asks once whether to save (and overwrite) the shipped, pre-installed parameter files with the newly-learned ones; answering no aborts the run. It also asks whether to include colour in the trained model.
 
 ```matlab
-run_demo      % runs the demo according to the selected demo_type
+run_demo      % asks for quick/full mode and colour, then runs the demo
 ```
 
 ## Repository layout
@@ -59,11 +64,15 @@ run_demo      % runs the demo according to the selected demo_type
 ```
 texture-learning/
 ├── setup.m, config.m         path bootstrap + central configuration
-├── pipeline/                 numbered pipeline stages s1..s7 (+ list_natural_images helper)
+├── run_demo.m                end-to-end demo (train or load, then evaluate)
+├── pipeline/                 numbered pipeline stages s1..s7 plus their helpers
 ├── +segmentation/            grouping algorithm (content-similarity, grouping, region scoring)
 ├── +gtr/                     GTR stimulus generation (texture-region masks, texture assignment)
+├── demo/                     plotting and sampling helpers used by run_demo
+├── tools/                    checks against Geisler's original segmentation code (see below)
+├── experiments/              adaptive-histogram experiments
 ├── twin-net/                 twin/Siamese network comparison (learned; needs Deep Learning Toolbox)
-├── data/models/              shipped trained artifacts (PCA, priors, AHEO bins, dbnd bounds, net_on_nat)
+├── data/models/              shipped trained artifacts (priors, AHEO bins, decision bounds, segmentation params, net_on_nat)
 ├── data/stimuli/             generated data (patch pairs, results) — git-ignored
 └── docs/                     papers + design docs (e.g. colour extension: docs/color-extension-plan.md)
 ```
@@ -77,9 +86,9 @@ images and write artifacts to `data/models/`; stages 6–7 apply/evaluate it on 
 
 | Stage | Function (`pipeline/`) | Produces |
 |---|---|---|
-| 1 | `s1_learn_color_transform(cfg)` | `vislab-common/data/cps_lms2abr_otf.mat` — LMS→ABR colour rotation (lab-shared) |
+| 1 | `s1_learn_color_transform(cfg)` | `vislab-common/data/cps_lms2abr[_otf].mat` — LMS→ABR colour rotation (lab-shared), loaded by `config` as `cfg.color_rotation` |
 | 2+3 | `s23_learn_priors_and_pairs(cfg, ecc)` | `priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat` (per-ecc natural feature priors) + `patch_pairs_ecc<ecc>.mat` (near/far training pairs), in one pass over the images |
-| 4 | `s4_optimize_bins(cfg, dim, ecc)` | `AHEO<btype><dim><ecc>.mat` — adaptive histogram bins |
+| 4 | `s4_optimize_bins(cfg, dims, ecc)` | `AHEO_bins.mat` (`AHE_bins.mat` without optics) — adaptive histogram bins, all features × eccentricities in one file |
 | 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>[_color][_otf].mat` (`_color` for the colour model, `_otf` when trained with the eye optics) — trained decision-variable bounds |
 | 6 | `s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)` | per-image self-supervised discrimination accuracy surfaces (runs on GTR images built from Brodatz/Fabric source textures — see Quick demo) |
 | 7 | `s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)` | chooses the fixed grouping parameters (offset, merge) by segmenting many GTR images; optionally saves `segmentation_params[_otf].mat`, loaded by `config` as `cfg.segment` |
@@ -123,6 +132,14 @@ model's training images (e.g. the optics-trained model on unfiltered GTR images)
 
 Full design rationale, the data-file layout, and implementation notes: `docs/color-extension-plan.md`.
 
+## Reproducing Geisler's segmentations
+
+`tools/` holds scripts that check this repo against Geisler's original segmentation code (kept outside
+the repo): `check_bill_segmentation` confirms the GTR segmentations match his exactly, and
+`compare_otf_bill` compares segmentations with his eye-optics filter, a corrected filter, and with the
+optics off. The write-up is in `docs/segmentation-parity.md`. `cfg.bill_compat` (default `true`) keeps his
+conventions so these checks pass.
+
 ## Twin network (learned comparison)
 
 `twin-net/` holds a twin/Siamese network that plays the same game as the Bayesian model,
@@ -145,10 +162,12 @@ The pipeline saves its trained parameters and intermediate datasets as `.mat` fi
 
 Here is a simple breakdown of the data files you'll encounter:
 
-- **`cps_lms2abr_otf.mat`**: The LMS→ABR color space transformation matrix. This file is **not** duplicated in this repository; it lives exclusively in the lab's shared `vislab-common/data/` folder so all projects use the exact same calibration.
+- **`cps_lms2abr[_otf].mat`**: The LMS→ABR color space transformation matrix. This file is **not** duplicated in this repository; it lives exclusively in the lab's shared `vislab-common/data/` folder so all projects use the exact same calibration.
 - **`priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat`**: The natural marginal probability distributions (priors) for the model's low-level image features, learned per eccentricity (ecc applies blur + downsampling, which changes the feature statistics).
 - **`patch_pairs_ecc<ecc>.mat`**: Large datasets of *near* (likely same texture) and *far* (likely different texture) patch pairs, extracted directly from unlabelled natural images to train the model. Stores 1-channel achromatic patches or 3-channel colour (LMS/ABR) patches depending on `cfg.features.color` (see Colour extension above); a `color` flag in the file records which, and the pipeline errors loudly if it doesn't match `cfg`.
-- **`AHEO<btype><dim><ecc>.mat`**: Adaptive histogram bin boundaries used for discretizing the feature responses.
+- **`AHEO_bins.mat`** (`AHE_bins.mat` when trained without optics): Adaptive histogram bin boundaries used for discretizing the feature responses, for all features and eccentricities.
+- **`segmentation_params[_otf].mat`**: The fixed grouping parameters chosen by stage 7, loaded by `config` as `cfg.segment`.
+- **`bill_lms2abr.mat`**: Geisler's own LMS→ABR rotation, used only when reproducing his segmentations exactly (`cfg.bill_compat`).
 - **`decision_bounds_ecc_<ecc>_otf.mat`** (achromatic) / **`decision_bounds_ecc_<ecc>_color_otf.mat`** (colour): The final trained quadratic decision boundaries for determining whether two patches belong to the same or different textures. The achromatic file stores one spot bound; the colour file additionally stores the achromatic/chromatic sub-bounds it combines (see Colour extension above).
 
 *(Note: `<ecc>` refers to the spatial eccentricity-related downsampling factor of the patches, typically 1, 2, 4, or 8).*
