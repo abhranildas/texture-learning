@@ -15,7 +15,8 @@ function result = compare_otf_bill(itypes, n_images, out_dir, bill_root)
 %        vislab colour rotation, no stale mutual-similarity term);
 %     5. as 4, but with no optics filter on the GTR image (config's test_optics =
 %        false; the model is still the one trained with the optics).
-%   All five use Bill's trained model, his flags and fixed grouping parameters
+%   Rows 1-3 use Bill's trained model, rows 4-5 this repo's (data/models). All five
+%   use Bill's flags and fixed grouping parameters
 %   (seg_11_8_26_1_1.mat, as his test_ss_segm.m does), and start from the same RNG
 %   state. One figure per texture set: one column per image, rows ground truth and
 %   segmentations 1-5, regions as semi-transparent colours matched to the ground

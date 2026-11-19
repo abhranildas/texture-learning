@@ -4,7 +4,7 @@ function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
 %   out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
 %
 %   Pipeline stage 7 (Bill's GTR_segment.m + self_sup_tex_segm.m). The segmentation
-%   (segmentation.segment_image) has two kinds of parameters:
+%   (segmentation.segment_lms) has two kinds of parameters:
 %     - per image, learned self-supervised from that image alone: the grouping
 %       criterion gcopt and the mutual-similarity weight wmopt;
 %     - fixed, shared by all images: the offset added to gcopt, the confidence
@@ -39,7 +39,7 @@ function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
 %       .params      chosen fixed parameters (cfg.segment with offset/merge replaced)
 %       .itypes, .ecc, .n_images
 %
-%   See also SEGMENTATION.SEGMENT_IMAGE, SEGMENTATION.LEARN_IMAGE_SIMILARITY,
+%   See also SEGMENTATION.SEGMENT_LMS, SEGMENTATION.LEARN_IMAGE_SIMILARITY,
 %   MAKE_GTR_IMAGE, LOAD_TEXTURE_IMAGES, CONFIG
 
     if nargin < 2 || isempty(itypes),      itypes = [3 2 4 5 6 1]; end
@@ -55,18 +55,14 @@ function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
 
     rng(cfg.seed);
     for t = 1:numel(itypes)
-        [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itypes(t), ecc);
+        textures = itypes(t);              % loaded on the first image, then reused
         for k = 1:n_images
-            texs = gtr.sample_texture_ids(nimg, ntexr, 1);
-            [~, map3] = gtr.grow_region_masks(cfg.gtr.szp, ntexr, 1, ...
-                cfg.gtr.seed_radius, cfg.gtr.coverage);
-            map  = map3(:, :, 1);
-            pimg = make_gtr_image(cfg, imgr, imgg, imgb, texs(1, :), map);
+            [pimg, map, ~, textures] = make_gtr_image(cfg, textures, 1, ecc);
             S = segmentation.learn_image_similarity(cfg, pimg, map, params.method);
             for o = 1:numel(offset_vec)
                 for m = 1:numel(merge_vec)
                     p = params;  p.group_offset = offset_vec(o);  p.merge = merge_vec(m);
-                    seg = segmentation.segment_image(cfg, [], map, p, S);
+                    seg = segmentation.segment_lms(cfg, [], map, p, S);
                     n_correct(m, o, k, t) = seg.nrg;
                 end
             end

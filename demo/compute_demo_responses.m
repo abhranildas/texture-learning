@@ -30,7 +30,7 @@ function [near, far, col] = compute_demo_responses(cfg, ecc)
     eccb = 1;
 
     [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, eccb, ...
-        double(cfg.optics.apply));
+        bins_filename(cfg));
 
     [ptchn_sub, ptchf_sub] = sample_demo_pairs(cfg, ecc);
     if isempty(ptchn_sub)

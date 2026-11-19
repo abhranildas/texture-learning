@@ -4,15 +4,15 @@ function import_bill_model(bill_root)
 %   import_bill_model(bill_root)
 %
 %   Converts Bill's trained artifacts (Bill's code/texture-learning-new) into this
-%   repo's formats and writes them to data/models, overwriting the repo-trained
-%   versions (which stay recoverable from git):
-%     decision_bounds_ecc_1_otf.mat        achromatic DVs, from dbnd{h,e,c,b,bc}NO1
-%     decision_bounds_ecc_1_color_otf.mat  colour DVs, from dbnd{ah,bh,ch,ce,cc,cb,cbc}NO1
-%     AHEO_bins.mat                    adaptive bins, from AHEO5<feature><ecc>, ecc 1/2/4/8
+%   repo's formats and writes them to data/models with a "_bill" tag, beside this
+%   repo's trained files (cfg.bill_compat selects them; see bins_filename):
+%     decision_bounds_ecc_1_otf_bill.mat        achromatic DVs, from dbnd{h,e,c,b,bc}NO1
+%     decision_bounds_ecc_1_color_otf_bill.mat  colour DVs, from dbnd{ah,bh,ch,ce,cc,cb,cbc}NO1
+%     AHEO_bins_bill.mat               adaptive bins, from AHEO5<feature><ecc>, ecc 1/2/4/8
 %     bill_lms2abr.mat                 LMS->ABR rotation coeff, from his
-%                                      cdfs_abr_mo13_mo23_cs33_otf.mat (cfg.bill_compat)
-%     segmentation_params_otf.mat      fixed grouping parameters (cfg.segment), from
-%                                      texture-learning-newer/GTRdiscsegm/seg_11_8_26_1_1.mat
+%                                      cdfs_abr_mo13_mo23_cs33_otf.mat
+%   His fixed grouping parameters are not imported: check_bill_segmentation reads
+%   them from his seg_11_8_26_1_1.mat.
 %   The border bounds are Bill's near-and-far ones (borderflg = 1), which his
 %   current segmentation runs use. Bill's model was trained and run with the eye
 %   optics on, so the files get the optics-on names (config(..., true)).
@@ -34,6 +34,8 @@ function import_bill_model(bill_root)
     setup();
     cfg = config(false, true);                 % achromatic, optics on
     cfg_color = config(true, true);            % colour, optics on
+    cfg.bill_compat = true;                    % "_bill" file names
+    cfg_color.bill_compat = true;
     models = cfg.paths.models;
     bound = @(name, var) getfield(load(fullfile(src, [name '.mat']), var), var);
 
@@ -66,19 +68,11 @@ function import_bill_model(bill_root)
             n_bins(f, e) = B.nbnds;
         end
     end
-    save(fullfile(models, 'AHEO_bins.mat'), 'bin_bounds', 'n_bins', 'eccs', 'btype');
+    save(fullfile(models, bins_filename(cfg)), 'bin_bounds', 'n_bins', 'eccs', 'btype');
 
     % --- Bill's LMS->ABR colour rotation (used when cfg.bill_compat is on) ---
     coeff = bound('cdfs_abr_mo13_mo23_cs33_otf', 'coeff');
     save(fullfile(models, 'bill_lms2abr.mat'), 'coeff');
-
-    % --- Bill's fixed segmentation parameters (the file his test_ss_segm.m loads) ---
-    B = load(fullfile(bill_root, 'texture-learning-newer', 'GTRdiscsegm', 'seg_11_8_26_1_1.mat'), ...
-        'flgs', 'gl', 'gcc', 'gr');
-    assert(B.flgs(2) == 0 && B.flgs(4) == 1, 'import_bill_model:flags', ...
-        'expected contentflg = 0, borderflg = 1 (the ''bc'' rule)');
-    params = struct('method', 'bc', 'group_offset', B.gl, 'confidence', B.gcc, 'merge', B.gr);
-    save(cfg.paths.segmentation_params, 'params');
 
     fprintf('Wrote Bill''s bounds and bins to %s\n', models);
 end

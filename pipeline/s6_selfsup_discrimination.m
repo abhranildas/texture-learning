@@ -56,14 +56,14 @@ function out = s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)
 
     % artifacts: bin bounds + trained DV handles (LMS->ABR transform auto-loaded)
     [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds( ...
-        cstat, eccb, double(cfg.optics.apply));
+        cstat, eccb, bins_filename(cfg));
     dv = load_dv_handles(cfg, ecc, mp.load_bc);
 
-    % texture sheets + trial stimuli
-    [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc);
-    texs = gtr.sample_texture_ids(nimg, cfg.gtr.n_regions, ntrl);
-    [~, maps] = gtr.grow_region_masks( ...
-        cfg.gtr.szp, cfg.gtr.n_regions, ntrl, cfg.gtr.seed_radius, cfg.gtr.coverage);
+    % trial stimuli, and the patch-index -> grid row/col maps (row-major)
+    [imgs, maps] = make_gtr_image(cfg, itype, ntrl, ecc);
+    szp = cfg.gtr.szp;
+    px = repelem((1:szp)', szp);
+    py = repmat((1:szp)', szp, 1);
 
     % criterion / mutual-similarity-weight grid
     gc_vec = 0:mp.dgc:mp.gcmx;   ngc = numel(gc_vec);
@@ -71,7 +71,7 @@ function out = s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)
     [pc, pcs, pcd, pcnf] = deal(zeros(ngc, nms, ntrl));
 
     for trl = 1:ntrl
-        [pimg, px, py] = make_gtr_image(cfg, imgr, imgg, imgb, texs(trl,:), maps(:,:,trl));
+        pimg = imgs(:, :, :, trl);
         phiall = segmentation.content_similarity_matrix(pimg, size(pimg,1)/cfg.gtr.szp, ...
             px, py, bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
         rho = segmentation.mutual_similarity(phiall, cfg.bill_compat);

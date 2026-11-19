@@ -34,7 +34,7 @@ function S = learn_image_similarity(cfg, pimg, map, method)
 %          phi, dst, mu                neighbour similarity, patch distances, combined
 %          patch_x, patch_y, patch_size  patch grid
 %
-% See also SEGMENTATION.SEGMENT_IMAGE, S7_SEGMENT_GTR, NEIGHBOR_FAR_RESPONSES,
+% See also SEGMENTATION.SEGMENT_LMS, S7_SEGMENT_GTR, NEIGHBOR_FAR_RESPONSES,
 %   SELF_SUP_DECISION, NEARFAR_SCORE_GRID
 
     [n_rows, n_cols] = size(map);
@@ -46,7 +46,7 @@ function S = learn_image_similarity(cfg, pimg, map, method)
 
     % artifacts: bin bounds (always the ecc-1 bins, as in the originals) + trained DVs
     cstat = zeros(1, 20);  cstat(cfg.features.dv_dims) = 5;   % spot + edge DV dims
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, double(cfg.optics.apply));
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, bins_filename(cfg));
     dv = load_dv_handles(cfg, ecc, true);
 
     % --- 1. content similarity + mutual similarity ---

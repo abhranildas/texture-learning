@@ -16,7 +16,7 @@ function report = check_bill_segmentation(segment_fn, golden_file, bill_root)
 %   Inputs
 %     segment_fn   default (empty or omitted): this repo's segmentation. Bill's RGB
 %                  image goes through the repo's eye optics, RGB->LMS and
-%                  downsampling, then segmentation.segment_image with Bill's
+%                  downsampling, then segmentation.segment_lms with Bill's
 %                  grouping parameters and the 'bc' rule (Bill's current one).
 %                  Otherwise a handle, out = segment_fn(img, map, params):
 %                    img     the GTR image as Bill stores it (RGB, gtrimg(:,:,:,k))
@@ -75,6 +75,7 @@ function out = repo_segment(img, map, params)
 % This repo's segmentation of one of Bill's stored RGB GTR images. Bill's flags:
 % 1 = resolution level, 6 = colour cues, 7 = eye optics.
     cfg = config(params.flgs(6) == 1, params.flgs(7) == 1);
+    cfg.bill_compat = true;                % reproduce Bill's quirks (config.m)
     out = segment_bill_image(cfg, img, map, params.flgs(1), struct('method', 'bc', ...
         'group_offset', params.gl, 'confidence', params.gcc, 'merge', params.gr));
 end

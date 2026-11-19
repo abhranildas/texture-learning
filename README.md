@@ -21,6 +21,16 @@ trained directly from *unlabelled* natural images, and then used to segment "gro
 (GTR) images. See the [foundational segmentation paper](https://www.biorxiv.org/content/10.64898/2026.05.06.723304v1.abstract)
 for the HBO model this builds on.
 
+## Installation and Setup
+
+- Download or git clone this repository to your local machine.
+- Install git (so that the `setup` script can automatically git clone the `vislab-common` dependency)
+- Within MATLAB, navigate to the repo folder and run:
+```matlab
+setup            % adds this repo + vislab to the path; auto-installs the gx2/IntClassNorm toolboxes if missing
+cfg = config;    % paths + parameters; edit cfg.paths.data_root if vislab-common/data isn't a sibling
+```
+
 ## Dependencies
 
 - **[vislab-common](https://github.com/abhranildas/vislab-common)** — the lab's shared MATLAB library
@@ -38,26 +48,25 @@ for the HBO model this builds on.
 - MATLAB with the Image Processing and Statistics & Machine Learning toolboxes (and the Deep Learning
   Toolbox for the twin network in `twin-net/`).
 
-## Installation and Setup
-
-- Download or git clone this repository to your local machine.
-- Install git (so that the `setup` script can automatically git clone the `vislab-common` dependency)
-- Within MATLAB, navigate to the repo folder and run:
-```matlab
-setup            % adds this repo + vislab to the path; auto-installs the gx2/IntClassNorm toolboxes if missing
-cfg = config;    % paths + parameters; edit cfg.paths.data_root if vislab-common/data isn't a sibling
-```
-
 ## Quick demo
 
-The `run_demo.m` script demonstrates the entire model lifecycle. It asks which of two modes to run, whether to include colour, and (via the `optics` setting at the top of the script) whether to use the eye-optics filter, which it applies to both training and testing:
+The `run_demo.m` script demonstrates the entire model lifecycle. It asks which of two modes to run, whether to use the eye-optics filter (applied to both training and testing), and whether to include colour:
 
 - **`quick` mode**: Skips the expensive training phase (Stages 1-5) and uses the pre-trained models shipped in `data/models/`. It plots the learned parameters, and then evaluates the model (Stages 6-7) on a small set of Grown-Texture-Region (GTR) images. The evaluation takes a few minutes to run. It also asks whether to include colour (see Colour extension below) and runs whichever mode you ask for — falling back, with a notice, to whichever mode's file actually is shipped if that one is missing.
 - **`full` mode**: Re-trains the model from scratch (Stages 1-5) before evaluating. Before training starts, the script asks once whether to save (and overwrite) the shipped, pre-installed parameter files with the newly-learned ones; answering no aborts the run. It also asks whether to include colour in the trained model.
 
 ```matlab
-run_demo      % asks for quick/full mode and colour, then runs the demo
+run_demo      % asks for quick/full mode, optics and colour, then runs the demo
 ```
+
+## Main functions
+
+| Function | What it does | Example |
+|---|---|---|
+| `make_gtr_image` | Makes grown-texture-region (GTR) test images and their true region maps | `[img, map] = make_gtr_image(config(), 3);` |
+| `segment_image` | Segments one image (a GTR image or a photo) into texture regions; scores it if given the true map | `segment_image(cfg, img, map)` |
+
+Run `help <function>` for its arguments.
 
 ## Repository layout
 
@@ -125,20 +134,12 @@ one actually is if the requested one isn't.
 training (stages 1-5, natural images) and testing (stages 6-7, texture and GTR images) alike. Each
 trained file records the setting in its name (`_otf`; `AHEO_`/`AHE_` for the bins), so both models
 can sit side by side in `data/models/`, and stages 4-5 refuse patch pairs built with the other
-setting. Only the optics-on model is shipped. `run_demo` sets it at the top (`optics = true`).
+setting. Only the optics-on model is shipped. `run_demo` asks for it at the start.
 A third input, `config(color, optics, test_optics)`, filters the test images differently from the
 model's training images (e.g. the optics-trained model on unfiltered GTR images); it defaults to
 `optics`.
 
 Full design rationale, the data-file layout, and implementation notes: `docs/color-extension-plan.md`.
-
-## Reproducing Geisler's segmentations
-
-`tools/` holds scripts that check this repo against Geisler's original segmentation code (kept outside
-the repo): `check_bill_segmentation` confirms the GTR segmentations match his exactly, and
-`compare_otf_bill` compares segmentations with his eye-optics filter, a corrected filter, and with the
-optics off. The write-up is in `docs/segmentation-parity.md`. `cfg.bill_compat` (default `true`) keeps his
-conventions so these checks pass.
 
 ## Twin network (learned comparison)
 
@@ -167,7 +168,7 @@ Here is a simple breakdown of the data files you'll encounter:
 - **`patch_pairs_ecc<ecc>.mat`**: Large datasets of *near* (likely same texture) and *far* (likely different texture) patch pairs, extracted directly from unlabelled natural images to train the model. Stores 1-channel achromatic patches or 3-channel colour (LMS/ABR) patches depending on `cfg.features.color` (see Colour extension above); a `color` flag in the file records which, and the pipeline errors loudly if it doesn't match `cfg`.
 - **`AHEO_bins.mat`** (`AHE_bins.mat` when trained without optics): Adaptive histogram bin boundaries used for discretizing the feature responses, for all features and eccentricities.
 - **`segmentation_params[_otf].mat`**: The fixed grouping parameters chosen by stage 7, loaded by `config` as `cfg.segment`.
-- **`bill_lms2abr.mat`**: Geisler's own LMS→ABR rotation, used only when reproducing his segmentations exactly (`cfg.bill_compat`).
+- **`bill_lms2abr.mat`**, **`*_bill.mat`**: Geisler's own LMS→ABR rotation, bins and decision bounds (written by `tools/import_bill_model`), used only when checking this repo against his code (`cfg.bill_compat`, off by default).
 - **`decision_bounds_ecc_<ecc>_otf.mat`** (achromatic) / **`decision_bounds_ecc_<ecc>_color_otf.mat`** (colour): The final trained quadratic decision boundaries for determining whether two patches belong to the same or different textures. The achromatic file stores one spot bound; the colour file additionally stores the achromatic/chromatic sub-bounds it combines (see Colour extension above).
 
 *(Note: `<ecc>` refers to the spatial eccentricity-related downsampling factor of the patches, typically 1, 2, 4, or 8).*

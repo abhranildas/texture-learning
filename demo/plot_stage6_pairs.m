@@ -39,7 +39,7 @@ function plot_stage6_pairs(cfg, ecc)
     cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
     eccb = 1;
     [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, eccb, ...
-        double(cfg.optics.apply));
+        bins_filename(cfg));
 
     try
         dv = load_dv_handles(cfg, ecc, true);

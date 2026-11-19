@@ -47,7 +47,7 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
     ptchf = pp.ptchf;
 
     % --- store into the consolidated bin-bounds file
-    if cfg.optics.apply, file = 'AHEO_bins.mat'; else, file = 'AHE_bins.mat'; end
+    file = bins_filename(cfg);
     out_path = fullfile(cfg.paths.models, file);
     [bin_bounds, n_bins_all, eccs] = load_or_init_bounds(out_path);
     ecc_idx = find(eccs == ecc, 1);

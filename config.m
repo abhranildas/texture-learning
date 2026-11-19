@@ -86,16 +86,20 @@ function cfg = config(color, optics, test_optics)
     cfg.color_rotation = load_if_present(cfg.paths.color_rotation, 'coeff', ...
         's1_learn_color_transform');
 
-    % --- TEMPORARY Bill-compatibility switch (docs/segmentation-parity.md). true
-    %     reproduces Bill's current code on the texture/GTR path:
+    % --- TEMPORARY Bill-compatibility switch (docs/segmentation-parity.md), for
+    %     checking this repo against Bill's code only (check_bill_segmentation turns
+    %     it on). Off is the correct model. On reproduces Bill's current code on the
+    %     texture/GTR path:
     %       1. his optics-filter frequency units (aply_otf uses u = k/ppd, not
     %          k*ppd/N; reported to him as a likely bug), via otf_ppd;
     %       2. his LMS->ABR colour rotation (data/models/bill_lms2abr.mat, written by
     %          tools/import_bill_model) instead of cfg.color_rotation, in
-    %          segmentation.prep_grid.
-    %     Natural-image training (s1-s5) does not use it. Remove once Bill settles
-    %     the optics question and the model is retrained. ---
-    cfg.bill_compat = true;
+    %          segmentation.prep_grid;
+    %       3. a stale extra term in his mutual-similarity loop
+    %          (segmentation.mutual_similarity).
+    %     Natural-image training (s1-s5) does not use it. Remove once the repo is
+    %     verified against Bill's code. ---
+    cfg.bill_compat = false;
 
     % --- calibrated natural-image dataset (for learning priors: stages s1, s2) ---
     %   sets are file-name stems inside cfg.paths.natural_images.
@@ -153,17 +157,22 @@ function cfg = config(color, optics, test_optics)
     cfg.gtr.power_suppress = 5e-5; % weak-power beta for the per-pair DVs
                                   % (kept equal to cfg.dv.power_suppress)
 
-    % --- fixed segmentation parameters, shared by all images (segmentation.segment_image):
+    % --- fixed segmentation parameters, shared by all images (segmentation.segment_lms):
     %       method        per-image rule for learning gcopt/wmopt ('bc', see
     %                     segmentation.learn_image_similarity)
     %       group_offset  added to the learned gcopt (paper gamma_l offset; Bill's gl)
     %       confidence    confidence criterion (gamma_c; Bill's gcc)
     %       merge         region-merge criterion (gamma_r; Bill's gr)
-    %     Chosen by s7_segment_gtr; the shipped values are Bill's (tools/import_bill_model).
-    %     Missing only before s7 has saved them for this optics setting. ---
+    %     Chosen by s7_segment_gtr. Before s7 has saved them for this optics setting,
+    %     Bill's choice (his seg_11_8_26_1_1.mat) is the fallback, so s7 has a method
+    %     and confidence to run with. ---
     cfg.paths.segmentation_params = fullfile(cfg.paths.models, ...
         ['segmentation_params' cfg.optics.file_tag '.mat']);
     cfg.segment = load_if_present(cfg.paths.segmentation_params, 'params', 's7_segment_gtr');
+    if isempty(cfg.segment)
+        cfg.segment = struct('method', 'bc', 'group_offset', -0.25, 'confidence', 1.2, ...
+            'merge', 0.8);
+    end
 
     % --- reproducibility ---
     cfg.seed = 0;

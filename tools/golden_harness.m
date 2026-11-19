@@ -61,7 +61,7 @@ nh = cfg.features.spot_dims;
 ne = cfg.features.edge_dv_dims;
 feature_list = zeros(1, 20);  feature_list(cfg.features.dv_dims) = 1;
 cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
-[n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, ecc, double(cfg.optics.apply));
+[n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, ecc, bins_filename(cfg));
 
 rng(cfg.seed);
 [R, keep, col] = pair_responses(ptchn, bin_bounds, n_bins, feature_list, nh, ne, b0, thresh, psz, cfg); %#ok<ASGLU>

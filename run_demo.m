@@ -4,8 +4,8 @@
 %   or:   >> cd <repo>; setup; run run_demo.m
 %
 %   This is a script, not a function: it takes no arguments and returns nothing,
-%   but it asks two questions at the prompt (demo mode, then whether to include
-%   colour) and leaves its results in the base workspace and in figure windows.
+%   but it asks three questions at the prompt (demo mode, whether to apply the
+%   eye-optics filter, then whether to include colour) and leaves its results in the base workspace and in figure windows.
 %
 % What it does:
 %   Demonstrates the entire texture-learning pipeline described in the paper
@@ -60,11 +60,6 @@ setup;
 % button if it doesn't take.)
 set(0, 'defaultfigurewindowstyle', 'docked');
 
-% --- Eye-optics filter, for training and testing alike (config's `optics` input).
-%     false uses (or, in full mode, trains) the model without the optics filter;
-%     its files sit beside the optics-on ones in data/models. ---
-optics = true;
-
 % --- 0. Choose the demo mode ('quick' or 'full') ---
 %   'quick': fast -- skips training (stages 1-5), uses the shipped pre-trained bounds
 %            for whichever colour/achromatic mode is asked for (see below).
@@ -76,6 +71,17 @@ while ~ismember(demo_type, {'quick', 'full'})
         'Run demo in ''quick'' or ''full'' mode? [quick/full, default quick]: ', 's')));
     if isempty(demo_type), demo_type = 'quick'; end
 end
+
+% --- Eye-optics filter, for training and testing alike (config's `optics` input).
+%     Off uses (or, in full mode, trains) the model without the optics filter; its
+%     files sit beside the optics-on ones in data/models. ---
+optics_reply = '';
+while ~ismember(optics_reply, {'y', 'n'})
+    optics_reply = lower(strtrim(input( ...
+        'Apply the eye-optics filter? [y/n, default y]: ', 's')));
+    if isempty(optics_reply), optics_reply = 'y'; end
+end
+optics = strcmp(optics_reply, 'y');
 
 if strcmp(demo_type, 'full')
     reply = input([ ...
@@ -107,6 +113,7 @@ if strcmp(demo_type, 'full')
     fprintf('-> Running Stage 1: s1_learn_color_transform...\n');
     % Capture the learned LMS->ABR rotation to plot in Stage 1 (over all images).
     coeff_s1 = s1_learn_color_transform(cfg, true);
+    cfg.color_rotation = coeff_s1;   % cfg was built before s1 saved it
 
     % Stage 2+3: Learn Feature Priors AND Make Near/Far Training Pairs (single pass)
     % In one pass over the natural images, compute the natural prior distributions
@@ -207,7 +214,7 @@ drawnow;
 
 % --- 1. check the shipped (or newly trained) artifacts are present ---
 % The bin file's name records whether the optics were applied when it was built.
-if cfg.optics.apply, bins_file = 'AHEO_bins.mat'; else, bins_file = 'AHE_bins.mat'; end
+bins_file = bins_filename(cfg);
 needed_files = {prior_filename(cfg, 1), ...
                 decision_bounds_filename(cfg, 1), bins_file};
 is_present = cellfun(@(f) exist(fullfile(cfg.paths.models, f), 'file') > 0, needed_files);

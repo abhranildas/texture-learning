@@ -1,8 +1,8 @@
-function out = segment_image(cfg, pimg, map, params, S)
-% SEGMENT_IMAGE  Segment one GTR image into texture regions at fixed grouping parameters.
-%   out = segmentation.segment_image(cfg, pimg, map)
-%   out = segmentation.segment_image(cfg, pimg, map, params)
-%   out = segmentation.segment_image(cfg, pimg, map, params, S)
+function out = segment_lms(cfg, pimg, map, params, S)
+% SEGMENT_LMS  Segment one LMS image into texture regions at fixed grouping parameters.
+%   out = segmentation.segment_lms(cfg, pimg, map)
+%   out = segmentation.segment_lms(cfg, pimg, map, params)
+%   out = segmentation.segment_lms(cfg, pimg, map, params, S)
 %
 %   Learns this image's similarities and self-supervised grouping criterion
 %   (segmentation.learn_image_similarity), then groups its patches into regions

@@ -17,7 +17,7 @@ function plot_stage2(cfg, ecc)
     if ~isfile(out_path), return; end
     priors = load(out_path);
 
-    if cfg.optics.apply, bin_file = 'AHEO_bins.mat'; else, bin_file = 'AHE_bins.mat'; end
+    bin_file = bins_filename(cfg);
     bin_path = fullfile(cfg.paths.models, bin_file);
     has_bins = isfile(bin_path);
     if has_bins

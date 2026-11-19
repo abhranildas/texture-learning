@@ -5,7 +5,8 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
 %       spot_llr_dims, edge_llr_dims, power_suppress, edge_thresh, patch_size, cfg)
 %
 %   Shared by s5_train_decision_vars, compute_demo_responses and plot_stage6_pairs.
-%   Drops outlier pairs (|.| >= 25 in the spot/edge/power LLRs). `spot_llr_dims` sets
+%   Drops outlier pairs (|.| >= 25 in the spot/edge/power LLRs) and pairs whose border
+%   responses are not finite (a row with zero edge energy gives log(x/0)). `spot_llr_dims` sets
 %   3 spot columns (achromatic only) or 5 (with cfg.features.spot_chrom_dims), so
 %   callers must index the response matrix by the returned COL struct rather than a
 %   fixed layout:
@@ -76,6 +77,7 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
     R = zeros(n_pairs, n_spot + n_edge + 3);
     keep = zeros(n_pairs, 1);
     n = 0;
+    n_nonfinite = 0;                   % pairs dropped for a non-finite border response
     for i = 1:n_pairs
         p1 = patches(1:patch_size, 1:patch_size, :, i);
         p2 = patches(1:patch_size, patch_size+1:2*patch_size, :, i);
@@ -96,11 +98,17 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
         re = log(edge(edge_llr_dims));
 
         check = [rh, re, rp];
-        if all(check > lo) && all(check < hi)
+        if ~all(isfinite(border(1:2)))
+            n_nonfinite = n_nonfinite + 1;
+        elseif all(check > lo) && all(check < hi)
             n = n + 1;
             R(n, :) = [rh, re, rp, border(1), border(2)];
             keep(n) = i;
         end
+    end
+    if n_nonfinite > 0
+        fprintf('pair_responses: dropped %d of %d pairs for a non-finite border response\n', ...
+            n_nonfinite, n_pairs);
     end
     R = R(1:n, :);
     keep = keep(1:n);

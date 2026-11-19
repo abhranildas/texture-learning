@@ -3,7 +3,7 @@ function plot_stage8_natural(cfg, ecc)
 %   plot_stage8_natural(cfg, ecc)
 %
 %   Applies the exact self-supervised segmentation used on GTR images
-%   (segmentation.segment_image at the fixed parameters cfg.segment) to a real
+%   (segment_image at the fixed parameters cfg.segment) to a real
 %   natural image, using the same 64x64 (= cfg.patch.size/ecc) patches. The image
 %   is clipped to the largest rectangle that is a whole number of patches.
 %
@@ -21,7 +21,7 @@ function plot_stage8_natural(cfg, ecc)
 %     cfg    - config struct.
 %     ecc    - eccentricity (default 1).
 %
-% See also SEGMENTATION.SEGMENT_IMAGE, S7_SEGMENT_GTR, PATCH_TO_RGB_DISPLAY
+% See also SEGMENTATION.SEGMENT_LMS, S7_SEGMENT_GTR, PATCH_TO_RGB_DISPLAY
 
     if nargin < 2 || isempty(ecc), ecc = 1; end
     patch_size = cfg.patch.size / ecc;
@@ -40,21 +40,13 @@ function plot_stage8_natural(cfg, ecc)
     pimg = vislab.nat_stat_bayes.source_to_lms(files{idx}, cfg_test, ...
         struct('prescale', prescale, 'ecc', ecc));
     pimg = imresize(pimg, 0.5);              % halve the image before segmenting
-    n_patch_rows = floor(size(pimg, 1) / patch_size);
-    n_patch_cols = floor(size(pimg, 2) / patch_size);
-    if n_patch_rows < 2 || n_patch_cols < 2
-        fprintf('stage 8: natural image too small (%dx%d) for a %dpx grid.\n', ...
-                size(pimg, 1), size(pimg, 2), patch_size);
-        return;
-    end
-    % top-left crop, whole patches in each dim
-    pimg = pimg(1:n_patch_rows*patch_size, 1:n_patch_cols*patch_size, :);
-    fprintf('stage 8: segmenting a %dx%d natural image (%dx%d patches of %dpx)...\n', ...
-            n_patch_rows*patch_size, n_patch_cols*patch_size, n_patch_rows, n_patch_cols, ...
-            patch_size);
 
-    seg = segmentation.segment_image(cfg, pimg, zeros(n_patch_rows, n_patch_cols));
+    % segment_image crops it (top-left) to whole patches
+    seg = segment_image(cfg, pimg, [], ecc=ecc);
+    pimg = seg.lms;
     groups2d = seg.emap;
+    fprintf('stage 8: segmented a %dx%d natural image (%dx%d patches of %dpx).\n', ...
+            size(pimg, 1), size(pimg, 2), size(groups2d, 1), size(groups2d, 2), patch_size);
 
     % --- plot: natural image beside its segmentation overlay ---
     % in achromatic mode this shows the A channel the model segments (see

@@ -60,7 +60,7 @@ function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
     cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
 
     [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds( ...
-        cstat, eccb, double(cfg.optics.apply));
+        cstat, eccb, bins_filename(cfg));
 
     pp = load_patch_pairs(cfg, ecc);      % errors if built for another colour/optics mode
 
