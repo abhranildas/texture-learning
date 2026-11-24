@@ -19,7 +19,7 @@ function import_bill_model(bill_root)
 %   Bill's files are only read.
 %
 %   Bill's model also uses power suppression b0 = 5e-5 and edge DV features
-%   [5 9 10 11]; config.m must match (cfg.dv/gtr.power_suppress,
+%   [5 9 10 11]; config.m must match (cfg.dv.power_suppress,
 %   cfg.features.edge_dv_dims) for these files to be used consistently.
 %
 %   Input

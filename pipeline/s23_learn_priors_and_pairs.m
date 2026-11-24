@@ -33,6 +33,10 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
     patch_size = cfg.patch.size / ecc;   % patch size at this eccentricity
 
     coeff = cfg.color_rotation;          % LMS->ABR rotation from s1, for this optics setting
+    if cfg.features.pca_gradient && isempty(cfg.pcgrad.model)
+        error('s23:noGradientPCA', 'pca_gradient is on but %s is missing -- run s1b_learn_gradient_pca.', ...
+            cfg.paths.gradient_pca);
+    end
 
     files  = list_natural_images(cfg);
     n_prior = ceil(cfg.natural.target_isolated_patches   / numel(files));  % isolated patches/image
@@ -71,11 +75,21 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
     end
     if do_save
         save(prior_path, '-struct', 'P');            % fields ea,Na,...,coeff (see finalize_priors)
-        color  = cfg.features.color;   % saved so s4/s5 can catch a stale-mode reuse
-        optics = cfg.optics.apply;     % (see load_patch_pairs)
-        save(pairs_path, 'ptchn', 'ptchf', 'pcnt', 'color', 'optics');
-        fprintf('s23: saved priors to %s and %d near/far pairs (ecc %d, color=%d) to %s\n', ...
-            prior_path, pcnt, ecc, cfg.features.color, pairs_path);
+        fprintf('s23: saved priors to %s\n', prior_path);
+        % The pairs do not depend on the features. With pca_gradient on, keep the
+        % existing pairs for this colour/optics mode, so both models train on the
+        % same pairs and the pca_gradient-off model's inputs are left untouched.
+        keep_pairs = false;
+        if cfg.features.pca_gradient, [~, keep_pairs] = load_patch_pairs(cfg, ecc); end
+        if keep_pairs
+            fprintf('s23: kept the existing near/far pairs in %s\n', pairs_path);
+        else
+            color  = cfg.features.color;   % saved so s4/s5 can catch a stale-mode reuse
+            optics = cfg.optics.apply;     % (see load_patch_pairs)
+            save(pairs_path, 'ptchn', 'ptchf', 'pcnt', 'color', 'optics');
+            fprintf('s23: saved %d near/far pairs (ecc %d, color=%d) to %s\n', ...
+                pcnt, ecc, cfg.features.color, pairs_path);
+        end
     else
         fprintf('s23: skipped saving priors and patch pairs.\n');
     end

@@ -9,7 +9,7 @@ function P = finalize_priors(img_feats, n_bins, coeff)
 %   Inputs
 %     img_feats - struct array (one element per natural image), fields as returned by
 %                 sample_prior_features: .lms, .g1m/.g1o/.g1mo, .g2m/.g2o/.g2mo,
-%                 .cs1/.cs2/.cs4.
+%                 .cs1/.cs2/.cs4 (and .pc1/.pc2/.pc3 with cfg.features.pca_gradient).
 %     n_bins    - number of CDF bins (histcounts bin count).
 %     coeff     - 3x3 LMS->ABR rotation matrix (from s1_learn_color_transform).
 %
@@ -34,5 +34,13 @@ function P = finalize_priors(img_feats, n_bins, coeff)
     [P.Ncs1, P.ecs1]= histcounts(cat(1, img_feats.cs1),  n_bins, 'Normalization', 'cdf');
     [P.Ncs2, P.ecs2]= histcounts(cat(1, img_feats.cs2),  n_bins, 'Normalization', 'cdf');
     [P.Ncs4, P.ecs4]= histcounts(cat(1, img_feats.cs4),  n_bins, 'Normalization', 'cdf');
+    % gradient-PCA features (pca_gradient only): fields pc1.. -> Npc1/epc1, ...
+    for j = 1:3
+        f = sprintf('pc%d', j);
+        if isfield(img_feats, f)
+            [P.(['N' f]), P.(['e' f])] = histcounts(cat(1, img_feats.(f)), n_bins, ...
+                'Normalization', 'cdf');
+        end
+    end
     P.coeff = coeff;
 end

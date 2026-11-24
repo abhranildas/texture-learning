@@ -2,8 +2,9 @@ function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
 % LOAD_TEXTURE_IMAGES  Load and preprocess the texture-source sheets for a GTR type.
 %   [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
 %
-%   Loads the texture sheets for the requested itype, applies eye optics, converts
-%   to LMS, and downsamples to eccentricity `ecc`. Returns the three LMS
+%   Loads the texture sheets for the requested itype, normalizes each sheet's
+%   luminance and contrast (if cfg.gtr.normalize_sheets), applies eye optics,
+%   converts to LMS, and downsamples to eccentricity `ecc`. Returns the three LMS
 %   channel stacks (each sz x sz x nimg). Shared by pipeline stages s6 and s7.
 %
 %   itype: 1 Pertex | 2 Fabric | 3 Brodatz | 4 Brodatz+Fabric | 5 VisTex | 6 McGill.
@@ -86,13 +87,21 @@ function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
     cfg_otf.optics.apply = cfg.optics.apply_test;
     cfg_otf.optics.ppd = otf_ppd(cfg, cfg.patch.image_size);
 
+    % whole-sheet luminance/contrast normalization (cfg.gtr.normalize_sheets)
+    if cfg.gtr.normalize_sheets
+        sheet_norm = [cfg.norm.target_mean, cfg.norm.target_contrast];
+    else
+        sheet_norm = [];
+    end
+
     imgr = zeros(sz, sz, nimg);
     imgg = zeros(sz, sz, nimg);
     imgb = zeros(sz, sz, nimg);
     for k = 1:nimg
         flags = cfg.textures.(dbnames{k});       % ingestion flags for this database
         lms = vislab.nat_stat_bayes.source_to_lms(files{k}, cfg_otf, struct( ...
-            'gray', flags.gray, 'gamma', flags.gamma, 'resize_pertex', flags.resize, 'ecc', ecc));
+            'gray', flags.gray, 'gamma', flags.gamma, 'resize_pertex', flags.resize, 'ecc', ecc, ...
+            'normalize', sheet_norm));
         imgr(:, :, k) = lms(:, :, 1);
         imgg(:, :, k) = lms(:, :, 2);
         imgb(:, :, k) = lms(:, :, 3);

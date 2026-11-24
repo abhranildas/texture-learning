@@ -29,7 +29,7 @@ function R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv)
     [npx, npy] = size(map);              % grid rows x cols (npy = linear-index stride)
     patch_size = size(pimg, 1) / npx;
     dcrit = cfg.gtr.dcrit;
-    power_suppress = cfg.gtr.power_suppress;
+    power_suppress = cfg.dv.power_suppress;
     spot_dims = cfg.features.spot_dims;
     edge_dims = cfg.features.edge_dv_dims;
 

@@ -16,15 +16,14 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
 %     neighbor_distance - distance (pixels) identifying a neighbouring pair (= patch_size).
 %     dv                - struct of trained DV handles: dv.h, dv.e, dv.c, dv.b, dv.bc.
 %
-%   Note: per-pair DVs use cfg.gtr.power_suppress (b0), matching
-%   neighbor_far_responses and content_similarity_matrix (cfg.dv.power_suppress;
-%   both 5e-5, Bill's current b0).
+%   Note: per-pair DVs use cfg.dv.power_suppress (b0), as do
+%   neighbor_far_responses, content_similarity_matrix and training (s5).
 %
 %   See also SEGMENTATION.PREP_GRID, SEGMENTATION.CONTENT_FEATURES,
 %   SEGMENTATION.CONTENT_DV_PAIR, SEGMENTATION.CONTENT_SIMILARITY_MATRIX
 
     n = numel(patch_x);
-    power_suppress = cfg.gtr.power_suppress;
+    power_suppress = cfg.dv.power_suppress;
     spot_dims = cfg.features.spot_dims;     % [1 13 14]
     edge_dims = cfg.features.edge_dv_dims;  % [5 9 10 11]
 

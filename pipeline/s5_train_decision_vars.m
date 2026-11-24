@@ -38,12 +38,12 @@ function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
 %     near, far - full per-pair response matrices (rows = kept pairs; see pair_responses).
 %     col       - struct of column-index ranges into near/far (see pair_responses).
 %     dbnd (saved, not returned) - struct of trained quad2fun coefficient sets:
-%       .h/.e/.c/.b/.bc (and .ha/.hb when colour is on), plus .spot_dims/.spot_achr_n.
+%       .h/.e/.c/.b/.bc (and .ha/.hb when colour is on, .pg + .ms_n with pca_gradient), plus
+%       .spot_dims/.spot_achr_n/.edge_dims.
 %
-%   NOTE: power suppression power_suppress = 16 here (training) and now also in the
-%   content-similarity computation (cfg.dv.power_suppress=16) -- Geisler unified them
-%   (2026-07; content-sim was 10). Outliers (|log DV| >= 25) are dropped, as in the
-%   original.
+%   NOTE: the power DV's weak-power suppression is cfg.dv.power_suppress, the same
+%   constant segmentation uses (Bill's load_b0_nat, 5e-5). Outliers (|log DV| >= 25)
+%   are dropped, as in the original.
 %
 %   See also PAIR_RESPONSES, DECISION_BOUNDS_FILENAME, LOAD_DV_HANDLES,
 %   S23_LEARN_PRIORS_AND_PAIRS, S4_OPTIMIZE_BINS
@@ -51,7 +51,7 @@ function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
     if nargin < 3 || isempty(eccb), eccb = 1; end
     patch_size  = cfg.patch.size / ecc;
     btype  = 5;                            % natural-image bound type
-    power_suppress = 16;                   % weak-power suppression for training
+    power_suppress = cfg.dv.power_suppress;  % weak-power suppression, as at test
     edge_thresh = cfg.dv.edge_thresh;
     spot_dims = cfg.features.spot_dims;    % [1 13 14] achromatic-only, +[2 3] with colour
     edge_dims = cfg.features.edge_dv_dims; % [5 9 10 11]
@@ -92,9 +92,22 @@ function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
         dvh = @(x) dvh_2d([dvha(x(1:n_achr)); dvhb(x(n_achr+1:end))]);
     end
 
-    % edge (e): features cfg.features.edge_dv_dims
-    dbnd.e = train_bound(near(:, col.edge), far(:, col.edge));
-    dve = quad2fun(dbnd.e, 0);
+    % edge (e): features cfg.features.edge_dv_dims. With pca_gradient, the 1 px edge mag
+    % and the three PC gradient mag LLRs (col.ms_grad, first in col.edge) are first
+    % merged by their own bound, the multi-scale gradient DV (pg),
+    % which then joins the bar LLRs as the edge DV's inputs.
+    if isempty(cfg.features.ms_grad_dims)
+        dbnd.e = train_bound(near(:, col.edge), far(:, col.edge));
+        dve = quad2fun(dbnd.e, 0);
+    else
+        dbnd.pg = train_bound(near(:, col.ms_grad), far(:, col.ms_grad));
+        dbnd.ms_n = numel(col.ms_grad);        % inputs to pg (see edge_dv_handle)
+        dvpg = quad2fun(dbnd.pg, 0);
+        rest = setdiff(col.edge, col.ms_grad, 'stable');
+        dbnd.e = train_bound([apply_dv(dvpg, near(:, col.ms_grad)), near(:, rest)], ...
+                             [apply_dv(dvpg, far(:,  col.ms_grad)), far(:,  rest)]);
+        dve = edge_dv_handle(dbnd);
+    end
 
     % content (c): [power, spot DV, edge DV]
     content_near = [near(:, col.power), apply_dv(dvh, near(:, col.spot)), ...
@@ -119,6 +132,7 @@ function [near, far, col] = s5_train_decision_vars(cfg, ecc, eccb, autosave)
     % must be applied, and catch a config/artifact mismatch loudly instead of silently
     dbnd.spot_dims   = cfg.features.spot_dims;
     dbnd.spot_achr_n = numel(cfg.features.spot_achr_dims);
+    dbnd.edge_dims   = cfg.features.edge_dv_dims;
 
     file = decision_bounds_filename(cfg, ecc);
     if nargin < 4 || isempty(autosave)

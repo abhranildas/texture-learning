@@ -5,9 +5,9 @@ function plot_stage5(cfg, ecc, R_near, R_far, col)
 %
 %   One figure, one row per stage:
 %     col 1  response cloud / decision map with the trained boundary (grid, no ticks)
-%     col 2  proportional contribution to classification d' (plot_dcon_bar)
+%     col 2  proportional contribution to classification d' (plot_dcon_pie)
 %     col 3  resulting 1D DV distributions for near vs. far pairs
-%   Response-cloud axis labels are coloured to match the contribution-bar sections.
+%   Response-cloud axis labels are coloured to match the contribution-pie slices.
 %   (This is the figure formerly titled 5C; the old 5B border panel now lives in
 %   plot_stage5_intermediate's bottom row.)
 %
@@ -21,7 +21,7 @@ function plot_stage5(cfg, ecc, R_near, R_far, col)
 % Output
 %   none (draws the figure)
 %
-% See also PLOT_STAGE5_INTERMEDIATE, PLOT_DCON_BAR, APPLY_DV, LOAD_DV_HANDLES
+% See also PLOT_STAGE5_INTERMEDIATE, PLOT_DCON_PIE, APPLY_DV, LOAD_DV_HANDLES
     if isempty(R_near), return; end
 
     % dv.h has the same signature (function of the full spot-LLR column) whether or
@@ -51,7 +51,7 @@ function plot_stage5(cfg, ecc, R_near, R_far, col)
     % ==========================================
     % ROW 1: CONTENT DV  ([power, spot, edge])
     % ==========================================
-    ccol = lines(3);
+    ccol = dim_colors(3);
     subplot(2, 3, 1); hold on;
     scatter3(content_far(:,1),  content_far(:,2),  content_far(:,3),  2, 'r', 'filled', ...
         'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
@@ -81,7 +81,7 @@ function plot_stage5(cfg, ecc, R_near, R_far, col)
     zlabel('Edge DV', 'Color', ccol(3,:));
 
     subplot(2, 3, 2);
-    plot_dcon_bar(content_near, content_far, {'power', 'spot', 'edge'});
+    plot_dcon_pie(content_near, content_far, {'power', 'spot', 'edge'});
 
     subplot(2, 3, 3); hold on;
     histogram(diff_c, 'FaceColor', 'r', 'Normalization', 'pdf', 'EdgeColor', 'none', ...
@@ -95,7 +95,7 @@ function plot_stage5(cfg, ecc, R_near, R_far, col)
     % ==========================================
     % ROW 2: FINAL OVERALL BOUNDARY  ([content, border])
     % ==========================================
-    fcol = lines(2);
+    fcol = dim_colors(2);
     c_min = min([same_c; diff_c]) - 1; c_max = max([same_c; diff_c]) + 1;
     b_min = min([same_b; diff_b]) - 1; b_max = max([same_b; diff_b]) + 1;
     [X, Y] = meshgrid(linspace(c_min, c_max, 200), linspace(b_min, b_max, 200));
@@ -122,7 +122,7 @@ function plot_stage5(cfg, ecc, R_near, R_far, col)
     xlabel('Content DV', 'Color', fcol(1,:)); ylabel('Border DV', 'Color', fcol(2,:));
 
     subplot(2, 3, 5);
-    plot_dcon_bar(final_near, final_far, {'content', 'border'});
+    plot_dcon_pie(final_near, final_far, {'content', 'border'});
 
     subplot(2, 3, 6); hold on;
     histogram(apply_dv(dv.bc, final_far),  'FaceColor', 'r', 'Normalization', 'pdf', ...

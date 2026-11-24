@@ -96,6 +96,7 @@ images and write artifacts to `data/models/`; stages 6–7 apply/evaluate it on 
 | Stage | Function (`pipeline/`) | Produces |
 |---|---|---|
 | 1 | `s1_learn_color_transform(cfg)` | `vislab-common/data/cps_lms2abr[_otf].mat` — LMS→ABR colour rotation (lab-shared), loaded by `config` as `cfg.color_rotation` |
+| 1b | `s1b_learn_gradient_pca(cfg)` | `gradient_pca[_otf].mat` — joint PCA of horizontal/vertical first-derivative responses at σ = 1, 2, 4 px; used by the model only with the gradient-PCA toggle (below) |
 | 2+3 | `s23_learn_priors_and_pairs(cfg, ecc)` | `priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat` (per-ecc natural feature priors) + `patch_pairs_ecc<ecc>.mat` (near/far training pairs), in one pass over the images |
 | 4 | `s4_optimize_bins(cfg, dims, ecc)` | `AHEO_bins.mat` (`AHE_bins.mat` without optics) — adaptive histogram bins, all features × eccentricities in one file |
 | 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>[_color][_otf].mat` (`_color` for the colour model, `_otf` when trained with the eye optics) — trained decision-variable bounds |
@@ -104,6 +105,8 @@ images and write artifacts to `data/models/`; stages 6–7 apply/evaluate it on 
 
 Stages 4-5 (and everything downstream) key off `cfg.features.dv_dims`/`spot_dims`, which
 `config.m` derives from `cfg.features.color` — see Colour extension below.
+
+**Gradient-PCA toggle.** `config(color, optics, [], true)` (or answering y at the demo prompt) adds three features from stage 1b: PC large, mid and small gradient mag (the magnitudes of PC1–2, PC3–4, PC5–6). With the 1 px edge mag they are merged by their own bound (the multi-scale gradient DV), which joins the bar features in the gradient DV. Its trained files carry a `_pcagrad` tag; with the toggle off (the default) the model and its files are unchanged.
 
 ## Colour (chromatic) extension
 
@@ -187,7 +190,7 @@ Decoder for the terse names in this codebase: code term ↔ paper symbol/notatio
 | `OTF` | — | optical transfer function of the eye (Watson 2013) |
 | `ppd` | — | pixels per degree (**60** for display/GTR images, **64** for the natural images: 64 px = 1°) |
 | `pd`, `w` | d, λ | pupil diameter (mm), wavelength (nm) |
-| `m0`, `c0` | — | target mean (128) and RMS contrast (0.25) for patch normalization |
+| `m0`, `c0` | — | target mean (128) and RMS contrast (0.25) for patch normalization, and for the whole texture sheets GTR images are built from (`cfg.gtr.normalize_sheets`) |
 
 ### Feature dimensions (indices 1–14)
 1 A pixel · 2 B pixel · 3 R pixel · 4 edge count · 5 edge magnitude · 6 edge orientation ·

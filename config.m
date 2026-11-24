@@ -1,9 +1,10 @@
-function cfg = config(color, optics, test_optics)
+function cfg = config(color, optics, test_optics, pca_gradient)
 % CONFIG  Central configuration for the texture-learning pipeline.
 %   cfg = config()
 %   cfg = config(color)
 %   cfg = config(color, optics)
 %   cfg = config(color, optics, test_optics)
+%   cfg = config(color, optics, test_optics, pca_gradient)
 %
 %   Returns a struct of data paths, optical/physical constants, patch geometry,
 %   normalization defaults, and the task-feature definitions. Pipeline stage
@@ -30,6 +31,13 @@ function cfg = config(color, optics, test_optics)
 %          being segmented), separately from the model, which `optics` picks. Set
 %          it different from `optics` only to test a model on images filtered
 %          differently from its training images.
+%   pca_gradient  logical, optional (default false). True adds three features from
+%          the learned multi-scale gradient PCs (s1b_learn_gradient_pca): PC large,
+%          mid and small gradient mag (15-17, the magnitudes of PC pairs 1-2, 3-4,
+%          5-6). They and the 1 px edge mag (5) are first merged by their own bound,
+%          the multi-scale gradient DV (dbnd.pg), which then joins the bar features
+%          in the gradient (edge) DV. Its trained files are tagged "_pcagrad".
+%          False leaves the model and every file name exactly as before.
 % Output
 %   cfg  struct of configuration fields, grouped as
 %          .paths     folder locations (char)
@@ -39,6 +47,7 @@ function cfg = config(color, optics, test_optics)
 %          .textures  per-database texture-sheet ingestion flags
 %          .norm      luminance/contrast normalization targets
 %          .dv        decision-variable computation parameters
+%          .pcgrad    multi-scale gradient PCA settings and learned model
 %          .gtr       grown-texture-region image settings (stages s6, s7)
 %          .seed      RNG seed for reproducible runs
 %          .demo      demo-plot settings
@@ -49,6 +58,7 @@ function cfg = config(color, optics, test_optics)
     if nargin < 1 || isempty(color),  color  = true; end
     if nargin < 2 || isempty(optics), optics = true; end
     if nargin < 3 || isempty(test_optics), test_optics = optics; end
+    if nargin < 4 || isempty(pca_gradient), pca_gradient = false; end
     repo_root = fileparts(mfilename('fullpath'));
 
     % --- data locations ---
@@ -76,6 +86,15 @@ function cfg = config(color, optics, test_optics)
         cfg.optics.file_tag = '_otf';     % marks files trained with the optics on
     else
         cfg.optics.file_tag = '';
+    end
+
+    % --- multi-scale gradient PCA toggle (see Inputs). Off: the model is unchanged.
+    %     The PCA itself (s1b_learn_gradient_pca) depends only on the optics. ---
+    cfg.features.pca_gradient = pca_gradient;
+    if pca_gradient
+        cfg.features.file_tag = '_pcagrad';   % marks files trained with it
+    else
+        cfg.features.file_tag = '';
     end
 
     % --- LMS->ABR colour rotation (stage s1 output), learned from natural images
@@ -136,8 +155,8 @@ function cfg = config(color, optics, test_optics)
     % --- decision-variable computation params (content-similarity / mk_phi context) ---
     %   power_suppress is the weak Fourier-power suppression constant (beta, Bill's b0).
     %   Bill's current model uses 5e-5 at every eccentricity (his load_b0_nat.m; was 16,
-    %   and 10 for content similarity before that). This and cfg.gtr.power_suppress
-    %   below are expected to stay equal.
+    %   and 10 for content similarity before that). Training (s5) and segmentation
+    %   both read it, so the content DV sees the same power scale in both.
     cfg.dv.power_suppress     = 5e-5;
     cfg.dv.edge_thresh        = 50;    % gradient threshold, image units (edge-count feature)
     cfg.dv.sd1  = 1;  cfg.dv.nsd1 = 3; % 1st-derivative steerable kernel (edges)
@@ -148,14 +167,29 @@ function cfg = config(color, optics, test_optics)
                                        % Rb12); false = the two joined patches (Rb). The
                                        % border bound itself is trained on Rb either way.
 
+    % multi-scale gradient PCA (s1b_learn_gradient_pca), used by the model only when
+    % pca_gradient is true; the bar features and border DV stay at sd1/sd2 = 1.
+    cfg.pcgrad.sd_list = [1 2 4];      % scales (px) of the H/V first-derivative kernels
+    cfg.pcgrad.nsd     = 3;            % kernel width in SDs (as cfg.dv.nsd1)
+    cfg.paths.gradient_pca = fullfile(cfg.paths.models, ...
+        ['gradient_pca' cfg.optics.file_tag '.mat']);
+    cfg.pcgrad.model = [];             % the learned PCA (struct pcg), loaded only when used
+    if pca_gradient
+        cfg.pcgrad.model = load_if_present(cfg.paths.gradient_pca, 'pcg', ...
+            's1b_learn_gradient_pca');
+    end
+
     % --- GTR images / segmentation experiments (stages s6, s7) ---
     cfg.gtr.szp          = 10;    % image size in patches (10x10 = 100 patches)
     cfg.gtr.n_regions    = 5;     % texture regions per GTR image (ntexr)
     cfg.gtr.seed_radius  = 1.0;   % region-seed radius as fraction of max
     cfg.gtr.coverage     = 1.0;   % fraction of the grid filled by regions
+    % normalize every texture sheet to mean cfg.norm.target_mean and contrast
+    % cfg.norm.target_contrast before building texture pairs / GTR images, so regions
+    % don't differ in overall luminance or contrast (Bill's mk_GTR_images.m, normflg=1;
+    % his self_sup_tex_segm.m does not normalize: set false to match that)
+    cfg.gtr.normalize_sheets = true;
     cfg.gtr.dcrit        = 7.0;   % min separation (patches) for a "far" pair
-    cfg.gtr.power_suppress = 5e-5; % weak-power beta for the per-pair DVs
-                                  % (kept equal to cfg.dv.power_suppress)
 
     % --- fixed segmentation parameters, shared by all images (segmentation.segment_lms):
     %       method        per-image rule for learning gcopt/wmopt ('bc', see
@@ -167,7 +201,7 @@ function cfg = config(color, optics, test_optics)
     %     Bill's choice (his seg_11_8_26_1_1.mat) is the fallback, so s7 has a method
     %     and confidence to run with. ---
     cfg.paths.segmentation_params = fullfile(cfg.paths.models, ...
-        ['segmentation_params' cfg.optics.file_tag '.mat']);
+        ['segmentation_params' cfg.optics.file_tag cfg.features.file_tag '.mat']);
     cfg.segment = load_if_present(cfg.paths.segmentation_params, 'params', 's7_segment_gtr');
     if isempty(cfg.segment)
         cfg.segment = struct('method', 'bc', 'group_offset', -0.25, 'confidence', 1.2, ...
@@ -188,12 +222,27 @@ function cfg = config(color, optics, test_optics)
     %   5 edge magnitude         12  center-surround ratio (small)
     %   6 edge orientation       13  center-surround linear (small)
     %   7 edge mag x orientation 14  center-surround linear (large)
+    %                            15  PC large gradient mag (pca_gradient only)
+    %                            16  PC mid gradient mag   (pca_gradient only)
+    %                            17  PC small gradient mag (pca_gradient only)
     cfg.features.names = { 'A pixel','B pixel','R pixel', ...
         'edge count','edge mag','edge ori','edge mag x ori', ...
         'bar count','bar mag','bar ori','bar mag x ori', ...
-        'cs ratio small','cs linear small','cs linear large' };
+        'cs ratio small','cs linear small','cs linear large', ...
+        'PC large gradient mag','PC mid gradient mag','PC small gradient mag' };
     cfg.features.edge_dims    = [5 7 9 10]; % edge/bar features computed by dv_edge_hist
-    cfg.features.edge_dv_dims = [5 9 10 11]; % fed to the content edge DV (Bill's current ne)
+    % edge DV features (Bill's current ne). With pca_gradient, the 1 px edge mag (5)
+    % and the three PC gradient mags (15-17) are first merged by their own bound
+    % (ms_grad_dims, first in edge_dv_dims); that DV joins the bar features.
+    if cfg.features.pca_gradient
+        cfg.features.pc_grad_dims = [15 16 17];
+        cfg.features.ms_grad_dims = [5 cfg.features.pc_grad_dims];
+        cfg.features.edge_dv_dims = [cfg.features.ms_grad_dims 9 10 11];
+    else
+        cfg.features.pc_grad_dims = [];
+        cfg.features.ms_grad_dims = [];
+        cfg.features.edge_dv_dims = [5 9 10 11];
+    end
 
     % --- colour extension (docs/color-extension-plan.md). Achromatic spot = A pixel +
     %     CS-small + CS-large (the published model); chromatic spot = B (blue-yellow) +

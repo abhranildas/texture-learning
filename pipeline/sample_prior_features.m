@@ -16,6 +16,8 @@ function s = sample_prior_features(img_lms, n_samples, patch_size, cfg, coeff)
 %     .g1m .g1o .g1mo    1st-derivative steerable magnitude / orientation / (m x o)
 %     .g2m .g2o .g2mo    2nd-derivative steerable magnitude / orientation / (m x o)
 %     .cs1 .cs2 .cs4     center-surround ratio / small-linear / large-linear
+%     .pc1 .pc2 .pc3     PC large / mid / small gradient magnitude (only with
+%                        cfg.features.pca_gradient; vislab.lib.pc_grad_response)
 %
 %   See also SAMPLE_ISOLATED_PATCHES, FINALIZE_PRIORS, S23_LEARN_PRIORS_AND_PAIRS
 
@@ -34,6 +36,9 @@ function s = sample_prior_features(img_lms, n_samples, patch_size, cfg, coeff)
     cs1v  = zeros(cap, 1);   n_cs1 = 0;
     cs2v  = zeros(cap, 1);   n_cs2 = 0;
     cs4v  = zeros(cap, 1);   n_cs4 = 0;
+    use_pc = cfg.features.pca_gradient;
+    n_pairs = numel(cfg.features.pc_grad_dims);   % PC gradient pairs (features 15-17)
+    pcv = zeros(cap, n_pairs);  n_pc = zeros(1, n_pairs);   % allocated only when used
 
     for k = 1:n_samples
         patch = patches(:, :, :, k);
@@ -70,10 +75,22 @@ function s = sample_prior_features(img_lms, n_samples, patch_size, cfg, coeff)
         nc = numel(cs); cs2v(n_cs2+1:n_cs2+nc) = cs(:); n_cs2 = n_cs2 + nc;
         cs = vislab.lib.center_surround(a, swid, 4);
         nc = numel(cs); cs4v(n_cs4+1:n_cs4+nc) = cs(:); n_cs4 = n_cs4 + nc;
+
+        % learned multi-scale gradient PC magnitudes (keep above-threshold, as g1m)
+        if use_pc
+            mags = vislab.lib.pc_grad_response(a, cfg.pcgrad.model, n_pairs);
+            for j = 1:n_pairs
+                v = mags(:, :, j);  v = v(v > thresh);
+                pcv(n_pc(j)+1:n_pc(j)+numel(v), j) = v;  n_pc(j) = n_pc(j) + numel(v);
+            end
+        end
     end
 
     s.lms  = lms(1:n_lms, :);
     s.g1m  = g1m(1:n_g1);    s.g1o = g1o(1:n_g1);    s.g1mo = g1mo(1:n_g1);
     s.g2m  = g2m(1:n_g2);    s.g2o = g2o(1:n_g2);    s.g2mo = g2mo(1:n_g2);
     s.cs1  = cs1v(1:n_cs1);  s.cs2 = cs2v(1:n_cs2);  s.cs4  = cs4v(1:n_cs4);
+    if use_pc
+        for j = 1:n_pairs, s.(sprintf('pc%d', j)) = pcv(1:n_pc(j), j); end
+    end
 end

@@ -14,6 +14,9 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
 %     col.spot_achr   - the achromatic subset of col.spot
 %     col.spot_chrom  - the chromatic subset of col.spot (empty if colour is off)
 %     col.edge        - edge LLR columns
+%     col.ms_grad     - the multi-scale gradient bound's inputs (1 px edge mag + PC
+%                       gradient mags), the first columns of col.edge (empty if
+%                       cfg.features.pca_gradient is off)
 %     col.power       - power LLR column
 %     col.border      - the two border-response columns
 %
@@ -72,6 +75,7 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
                  'spot_achr',  1:n_achr, ...
                  'spot_chrom', n_achr+1:n_spot, ...
                  'edge',       n_spot + (1:n_edge), ...
+                 'ms_grad',    n_spot + (1:numel(cfg.features.ms_grad_dims)), ...
                  'power',      n_spot + n_edge + 1, ...
                  'border',     n_spot + n_edge + (2:3));
     R = zeros(n_pairs, n_spot + n_edge + 3);
@@ -94,7 +98,7 @@ function [R, keep, col] = pair_responses(patches, bin_bounds, n_bins, feature_li
         border = vislab.nat_stat_bayes.dv_border(a1, a2, patch_size, 2, cfg.dv.sd1, cfg.dv.nsd1, ...
             false);
         edge   = vislab.nat_stat_bayes.dv_edge_hist(a1, a2, edge_thresh, bin_bounds, n_bins, ...
-            cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
+            cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list, cfg.pcgrad.model);
         re = log(edge(edge_llr_dims));
 
         check = [rh, re, rp];

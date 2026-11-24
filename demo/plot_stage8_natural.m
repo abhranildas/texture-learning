@@ -59,8 +59,12 @@ function plot_stage8_natural(cfg, ecc)
     subplot(1, 2, 1);
     image(pimg_rgb); axis image off; title('Natural image');
     subplot(1, 2, 2);
-    image(pimg_rgb); axis image off; hold on;
-    overlay_region_boundaries(groups_up);
+    if cfg.features.color                    % colour model: black-and-white borders
+        image(pimg_rgb); axis image off; hold on;
+        overlay_region_boundaries(groups_up, 'k', 3);  overlay_region_boundaries(groups_up, 'w', 1);
+    else                                     % achromatic: colour-tint each region
+        image(tint_regions(pimg_rgb, groups_up)); axis image off;
+    end
     title(sprintf('Self-supervised segmentation (%d regions)', nreg));
     drawnow;
 end

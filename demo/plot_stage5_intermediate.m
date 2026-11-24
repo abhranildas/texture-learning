@@ -1,21 +1,21 @@
 function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
-% PLOT_STAGE5_INTERMEDIATE  Show construction of the spot, edge and border
+% PLOT_STAGE5_INTERMEDIATE  Show construction of the spot, gradient and border
 %   decision variables.
 %   plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
 %
-%   One figure, one row per DV:
-%     col 1  response cloud with the trained quadratic boundary (grid, no ticks)
-%     col 2  each feature's proportional contribution to classification d'
-%            (classify_normals d_con; see plot_dcon_bar)
-%     col 3  resulting 1D DV distributions for near vs. far pairs
-%   The response-cloud axis labels are coloured to match the contribution-bar
+%   One figure, one column per DV, in the order they are built:
+%     row 1  response cloud with the trained quadratic boundary (grid, no ticks)
+%     row 2  each feature's proportional contribution to classification d'
+%            (classify_normals d_con; see plot_dcon_pie)
+%     row 3  resulting 1D DV distributions for near vs. far pairs
+%   The response-cloud axis labels are coloured to match the contribution-pie
 %   sections, tying each feature to its share of d'.
 %
-%   Whether the artifact was trained with colour (dbnd.ha/hb present) decides
-%   the layout: achromatic-only shows 3 rows (spot, edge, border); colour shows
-%   5 (achromatic spot, chromatic spot, full spot, edge, border) -- branching on
-%   the artifact, not cfg.features.color, so the figure always matches what it
-%   is plotting.
+%   The columns follow the artifact, not cfg, so the figure always matches what
+%   it is plotting: colour (dbnd.ha/hb present) splits the spot DV into
+%   achromatic, chromatic and full spot columns; the gradient-PCA model
+%   (dbnd.pg present) adds a multi-scale gradient DV column, which merges the PC
+%   large / small gradient LLRs before the gradient DV.
 %
 % Inputs
 %   cfg           - config struct.
@@ -27,7 +27,7 @@ function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
 % Output
 %   none (draws the figure)
 %
-% See also PLOT_STAGE5, PLOT_DCON_BAR, APPLY_DV, DECISION_BOUNDS_FILENAME
+% See also PLOT_STAGE5, PLOT_DCON_PIE, APPLY_DV, DECISION_BOUNDS_FILENAME
     if isempty(R_near), return; end
 
     try
@@ -36,110 +36,84 @@ function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
     catch
         return;
     end
-    dve = quad2fun(dbnd.e, 0);
-    dvb = quad2fun(dbnd.b, 0);
-    colour_mode = isfield(dbnd, 'ha');
+    names = cfg.features.names;
 
-    if colour_mode
-        nrows = 5;
-        figure('Name', 'Stage 5A: Spot, Edge & Border DV Construction', ...
-            'Position', [120 40 1300 1500]);
-        dvha = quad2fun(dbnd.ha, 0);
-        dvhb = quad2fun(dbnd.hb, 0);
-        dvh2 = quad2fun(dbnd.h,  0);   % combiner over [achromatic spot DV, chromatic spot DV]
-
-        % ==========================================
-        % ROW 1: ACHROMATIC SPOT DV  (features col.spot_achr)
-        % ==========================================
-        near_ha = R_near(:, col.spot_achr);  far_ha = R_far(:, col.spot_achr);
-        subplot(nrows, 3, 1);
-        local_scatter3_bd(dvha, near_ha, far_ha, {'Achromatic', 'CS-Small', 'CS-Large'});
-        title('Constructing Achromatic Spot DV');
-        subplot(nrows, 3, 2);
-        plot_dcon_bar(near_ha, far_ha, {'A', 'CS-small', 'CS-large'});
-        subplot(nrows, 3, 3);
-        local_dv_hist(dvha, near_ha, far_ha, 'Achromatic Spot DV');
-        dv_legend();
-
-        % ==========================================
-        % ROW 2: CHROMATIC SPOT DV  (features col.spot_chrom)
-        % ==========================================
-        near_hb = R_near(:, col.spot_chrom);  far_hb = R_far(:, col.spot_chrom);
-        subplot(nrows, 3, 4);
-        local_scatter2_bd(dvhb, near_hb, far_hb, {'B (blue-yellow)', 'R (red-green)'});
-        title('Constructing Chromatic Spot DV');
-        subplot(nrows, 3, 5);
-        plot_dcon_bar(near_hb, far_hb, {'B', 'R'});
-        subplot(nrows, 3, 6);
-        local_dv_hist(dvhb, near_hb, far_hb, 'Chromatic Spot DV');
-
-        % ==========================================
-        % ROW 3: FULL SPOT DV  ([achromatic spot DV, chromatic spot DV])
-        % ==========================================
-        near_h2 = [apply_dv(dvha, near_ha), apply_dv(dvhb, near_hb)];
-        far_h2  = [apply_dv(dvha, far_ha),  apply_dv(dvhb, far_hb)];
-        subplot(nrows, 3, 7);
-        local_scatter2_bd(dvh2, near_h2, far_h2, {'Achromatic Spot DV', 'Chromatic Spot DV'});
-        title('Constructing Full Spot DV');
-        subplot(nrows, 3, 8);
-        plot_dcon_bar(near_h2, far_h2, {'achromatic', 'chromatic'});
-        subplot(nrows, 3, 9);
-        local_dv_hist(dvh2, near_h2, far_h2, 'Full Spot DV');
-
-        row_edge = 10;  row_border = 13;
-    else
-        nrows = 3;
-        figure('Name', 'Stage 5A: Spot, Edge & Border DV Construction', ...
-            'Position', [120 60 1300 950]);
-        dvh = quad2fun(dbnd.h, 0);
-
-        % ==========================================
-        % ROW 1: SPOT DV  (features col.spot = [1 13 14])
-        % ==========================================
-        near_h = R_near(:, col.spot);  far_h = R_far(:, col.spot);
-        subplot(nrows, 3, 1);
-        local_scatter3_bd(dvh, near_h, far_h, {'Achromatic', 'CS-Small', 'CS-Large'});
-        title('Constructing Spot DV');
-        subplot(nrows, 3, 2);
-        plot_dcon_bar(near_h, far_h, {'A', 'CS-small', 'CS-large'});
-        subplot(nrows, 3, 3);
-        local_dv_hist(dvh, near_h, far_h, 'Spot DV');
-        dv_legend();
-
-        row_edge = 4;  row_border = 7;
+    % --- one entry per DV column: title, DV handle, its near/far inputs, labels ---
+    C = struct('title', {}, 'dv', {}, 'near', {}, 'far', {}, 'labels', {}, 'pie', {});
+    function add_col(ttl, dv, near, far, labels, pie)
+        C(end+1) = struct('title', ttl, 'dv', dv, 'near', near, 'far', far, ...
+            'labels', {labels}, 'pie', {pie});
     end
 
-    % ==========================================
-    % ROW: EDGE DV  (features col.edge)
-    % ==========================================
-    near_e = R_near(:, col.edge);  far_e = R_far(:, col.edge);
-    subplot(nrows, 3, row_edge);
-    local_scatter3_bd(dve, near_e, far_e, {'Edge Mag', 'Bar Mag', 'Bar Ori'});
-    title('Constructing Edge DV');
-    subplot(nrows, 3, row_edge + 1);
-    plot_dcon_bar(near_e, far_e, {'edge mag', 'bar mag', 'bar ori'});
-    subplot(nrows, 3, row_edge + 2);
-    local_dv_hist(dve, near_e, far_e, 'Edge DV');
+    spot_lab = {'Achromatic', 'CS-Small', 'CS-Large'};  spot_pie = {'A', 'CS-small', 'CS-large'};
+    if isfield(dbnd, 'ha')
+        dvha = quad2fun(dbnd.ha, 0);  dvhb = quad2fun(dbnd.hb, 0);
+        nha = R_near(:, col.spot_achr);   fha = R_far(:, col.spot_achr);
+        nhb = R_near(:, col.spot_chrom);  fhb = R_far(:, col.spot_chrom);
+        add_col('Achromatic Spot DV', dvha, nha, fha, spot_lab, spot_pie);
+        add_col('Chromatic Spot DV', dvhb, nhb, fhb, {'B (blue-yellow)', 'R (red-green)'}, {'B', 'R'});
+        % combiner over [achromatic spot DV, chromatic spot DV]
+        add_col('Full Spot DV', quad2fun(dbnd.h, 0), ...
+            [apply_dv(dvha, nha), apply_dv(dvhb, nhb)], [apply_dv(dvha, fha), apply_dv(dvhb, fhb)], ...
+            {'Achromatic Spot DV', 'Chromatic Spot DV'}, {'achromatic', 'chromatic'});
+    else
+        add_col('Spot DV', quad2fun(dbnd.h, 0), R_near(:, col.spot), R_far(:, col.spot), ...
+            spot_lab, spot_pie);
+    end
 
-    % ==========================================
-    % ROW: BORDER DV  (features col.border)
-    % ==========================================
-    near_b = R_near(:, col.border);  far_b = R_far(:, col.border);
-    subplot(nrows, 3, row_border);
-    local_scatter2_bd(dvb, near_b, far_b, {'Border Edge Mag', 'Border Bar Mag'});
-    title('Constructing Border DV');
-    subplot(nrows, 3, row_border + 1);
-    plot_dcon_bar(near_b, far_b, {'border edge', 'border bar'});
-    subplot(nrows, 3, row_border + 2);
-    local_dv_hist(dvb, near_b, far_b, 'Border DV');
+    % gradient DV: with the gradient-PCA model, its inputs are the multi-scale
+    % gradient DV (the 1 px edge mag and PC gradient mag LLRs merged by dbnd.pg)
+    % and the bar LLRs
+    near_e = R_near(:, col.edge);  far_e = R_far(:, col.edge);
+    edge_names = names(cfg.features.edge_dv_dims);
+    if isfield(dbnd, 'pg')
+        dvpg = quad2fun(dbnd.pg, 0);
+        pg_names = names(cfg.features.ms_grad_dims);
+        add_col('Multi-scale Gradient DV', dvpg, R_near(:, col.ms_grad), R_far(:, col.ms_grad), ...
+            pg_names, pg_names);
+        rest = setdiff(col.edge, col.ms_grad, 'stable');
+        near_e = [apply_dv(dvpg, R_near(:, col.ms_grad)), R_near(:, rest)];
+        far_e  = [apply_dv(dvpg, R_far(:,  col.ms_grad)), R_far(:,  rest)];
+        edge_names = [{'multi-scale gradient DV'}, ...
+            names(setdiff(cfg.features.edge_dv_dims, cfg.features.ms_grad_dims, 'stable'))];
+    end
+    % The gradient DV can use more than 3 features; the cloud shows the first 3,
+    % with the boundary sliced at the others' means.
+    add_col('Gradient DV', quad2fun(dbnd.e, 0), near_e, far_e, edge_names, edge_names);
+
+    add_col('Border DV', quad2fun(dbnd.b, 0), R_near(:, col.border), R_far(:, col.border), ...
+        {'Border Edge Mag', 'Border Bar Mag'}, {'border edge', 'border bar'});
+
+    % --- draw: one column per DV ---
+    nc = numel(C);
+    figure('Name', 'Stage 5A: Spot, Gradient & Border DV Construction', ...
+        'Position', [60 80 330 * nc 950]);
+    tiledlayout(3, nc, 'TileSpacing', 'loose', 'Padding', 'loose');   % room between DVs
+    for c = 1:nc
+        nexttile(c);
+        if size(C(c).near, 2) >= 3
+            local_scatter3_bd(C(c).dv, C(c).near, C(c).far, C(c).labels);
+        else
+            local_scatter2_bd(C(c).dv, C(c).near, C(c).far, C(c).labels);
+        end
+        title(['Constructing ' C(c).title]);
+        nexttile(nc + c);
+        plot_dcon_pie(C(c).near, C(c).far, C(c).pie);
+        nexttile(2 * nc + c);
+        local_dv_hist(C(c).dv, C(c).near, C(c).far, C(c).title);
+        if c == 1, dv_legend(); end
+    end
 end
 
 % ------------------------------------------------------------------------------
 function local_scatter3_bd(dv, near_pts, far_pts, labels)
 % 3D response cloud (near = blue, far = red) with the quadratic decision
 % boundary as a grey, grey-meshed dv = 0 isosurface. Ticks off, grid on, and
-% axis labels coloured to match the d'-contribution bar sections (lines(dim)).
-    dcol = lines(numel(labels));
+% axis labels coloured to match the d'-contribution pie slices (dim_colors).
+% With more than 3 features, the cloud shows the first 3 and the boundary is
+% the slice with features 4..end held at their mean over all plotted pairs.
+    dcol = dim_colors(numel(labels));
+    fixed = mean([near_pts(:, 4:end); far_pts(:, 4:end)], 1);
     hold on;
     scatter3(far_pts(:,1),  far_pts(:,2),  far_pts(:,3),  2, 'r', 'filled', ...
         'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
@@ -155,7 +129,7 @@ function local_scatter3_bd(dv, near_pts, far_pts, labels)
 
     [Xg, Yg, Zg] = meshgrid(linspace(x_min, x_max, 40), linspace(y_min, y_max, 40), ...
         linspace(z_min, z_max, 40));
-    V = reshape(apply_dv(dv, [Xg(:), Yg(:), Zg(:)]), size(Xg));
+    V = reshape(apply_dv(dv, [Xg(:), Yg(:), Zg(:), repmat(fixed, numel(Xg), 1)]), size(Xg));
     fv = isosurface(Xg, Yg, Zg, V, 0);
     if ~isempty(fv.vertices)
         local_draw_surface(fv);
@@ -170,8 +144,8 @@ end
 % ------------------------------------------------------------------------------
 function local_scatter2_bd(dv, near_pts, far_pts, labels)
 % 2D response cloud with the quadratic decision boundary as the dv = 0 contour.
-% Ticks off, grid on, axis labels coloured to match the contribution bar.
-    dcol = lines(numel(labels));
+% Ticks off, grid on, axis labels coloured to match the contribution pie.
+    dcol = dim_colors(numel(labels));
     hold on;
     scatter(far_pts(:,1),  far_pts(:,2),  2, 'r', 'filled', 'MarkerEdgeColor', 'none', ...
         'MarkerFaceAlpha', 0.6);

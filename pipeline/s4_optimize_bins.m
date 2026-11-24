@@ -167,6 +167,9 @@ function [prior_x, prior_p] = prior_for_dim(priors, dim)
         case 12, prior_x = priors.ecs1; prior_p = priors.Ncs1;
         case 13, prior_x = priors.ecs2; prior_p = priors.Ncs2;
         case 14, prior_x = priors.ecs4; prior_p = priors.Ncs4;
+        case {15, 16, 17}                                          % pca_gradient only
+            prior_x = priors.(sprintf('epc%d', dim - 14));
+            prior_p = priors.(sprintf('Npc%d', dim - 14));
         otherwise
             error('s4:badDim', 'No CDF for feature dimension %d.', dim);
     end
@@ -180,7 +183,7 @@ function [Va, Vb] = feature_values(patches, dim, patch_size, cfg)
 % edge_features), so the values are identical to what dv_spot_hist / dv_edge_hist
 % would compute; only the (bin-dependent) histogram + LLR is deferred to eval_r.
     target_contrast = cfg.norm.target_contrast;
-    is_edge = dim > 3 && dim <= 11;
+    is_edge = (dim > 3 && dim <= 11) || (dim >= 15 && dim <= 17);
     feature_list = zeros(1, 20);
     feature_list(dim) = 1;
     n_pairs = size(patches, 4);
@@ -195,9 +198,9 @@ function [Va, Vb] = feature_values(patches, dim, patch_size, cfg)
             a1 = vislab.lib.cntrst_norm(p1(:, :, 1), target_contrast, patch_size);
             a2 = vislab.lib.cntrst_norm(p2(:, :, 1), target_contrast, patch_size);
             fa = vislab.nat_stat_bayes.edge_features( ...
-                a1, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
+                a1, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list, cfg.pcgrad.model);
             fb = vislab.nat_stat_bayes.edge_features( ...
-                a2, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list);
+                a2, 0, cfg.dv.sd1, cfg.dv.nsd1, cfg.dv.sd2, cfg.dv.nsd2, feature_list, cfg.pcgrad.model);
         else
             fa = vislab.nat_stat_bayes.spot_features(p1, patch_size, feature_list);
             fb = vislab.nat_stat_bayes.spot_features(p2, patch_size, feature_list);

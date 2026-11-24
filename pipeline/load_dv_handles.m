@@ -54,7 +54,17 @@ function dv = load_dv_handles(cfg, ecc, load_bc)
     else
         dv.h = quad2fun(dbnd.h, 0);
     end
-    dv.e = quad2fun(dbnd.e, 0);
+    if isfield(dbnd, 'edge_dims')
+        trained_edge_dims = dbnd.edge_dims;
+    else
+        trained_edge_dims = [5 9 10 11];      % artifact predates this field
+    end
+    if ~isequal(trained_edge_dims, cfg.features.edge_dv_dims)
+        error('load_dv_handles:edgeDimMismatch', ...
+            'Trained bounds use edge dims %s but config asks for %s -- retrain stage 5.', ...
+            mat2str(trained_edge_dims), mat2str(cfg.features.edge_dv_dims));
+    end
+    dv.e = edge_dv_handle(dbnd);             % composite with the multi-scale gradient bound if trained
     dv.c = quad2fun(dbnd.c, 0);
     dv.b = quad2fun(dbnd.b, 0);
 

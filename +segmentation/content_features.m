@@ -34,6 +34,7 @@ function patch_features = content_features(patches, achrom, edge_channel, patch_
 
     thr = cfg.dv.edge_thresh;                 % only affects unused count features here
     sd1 = cfg.dv.sd1; nsd1 = cfg.dv.nsd1; sd2 = cfg.dv.sd2; nsd2 = cfg.dv.nsd2;
+    pcg = cfg.pcgrad.model;                   % gradient PCA (used only for dims 15, 16)
     spot_flags = zeros(1, 20); spot_flags(spot_dims) = 1;
     edge_flags = zeros(1, 20); edge_flags(edge_dims) = 1;
     [n_grid_rows, n_grid_cols] = size(patches);
@@ -56,7 +57,7 @@ function patch_features = content_features(patches, achrom, edge_channel, patch_
         s.hspot = hs;
 
         ev = vislab.nat_stat_bayes.edge_features( ...
-            edge_channel_v{k}, thr, sd1, nsd1, sd2, nsd2, edge_flags);
+            edge_channel_v{k}, thr, sd1, nsd1, sd2, nsd2, edge_flags, pcg);
         he = cell(1, 20);
         for t = 1:numel(edge_dims)
             d = edge_dims(t);  he{d} = histcounts(ev{d}, bin_bounds(d, 1:n_bins(d)));
