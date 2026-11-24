@@ -1,8 +1,8 @@
-function [groups, groups2d, ngrps] = assign_isolated_patches(groups, groups2d, ngrps, ...
+function [groups, groups2d, n_groups] = assign_isolated_patches(groups, groups2d, n_groups, ...
         n_patches, patch_x, patch_y, content_sim)
 % ASSIGN_ISOLATED_PATCHES  Attach unlinked patches to their best neighbouring group.
-%   [groups, groups2d, ngrps] = segmentation.assign_isolated_patches(groups, ...
-%       groups2d, ngrps, n_patches, patch_x, patch_y, content_sim)
+%   [groups, groups2d, n_groups] = segmentation.assign_isolated_patches(groups, ...
+%       groups2d, n_groups, n_patches, patch_x, patch_y, content_sim)
 %
 %   Confidence-grouping step: each patch left unlinked after transitive grouping
 %   is assigned to the 4-neighbour group with the highest content similarity (if
@@ -18,13 +18,13 @@ function [groups, groups2d, ngrps] = assign_isolated_patches(groups, groups2d, n
 %   Inputs
 %     groups, groups2d - current group membership and 2-D label map ([n_grid_rows x
 %                        n_grid_cols]).
-%     ngrps            - current number of groups.
+%     n_groups         - current number of groups.
 %     n_patches        - total number of patches.
 %     patch_x, patch_y - patch-index -> grid-coordinate maps.
 %     content_sim      - all-pairs content-similarity matrix.
 %
 %   Outputs
-%     groups, groups2d, ngrps - updated membership, map, and group count.
+%     groups, groups2d, n_groups - updated membership, map, and group count.
 %
 %   See also SEGMENTATION.GROUP_PATCHES, SEGMENTATION.MERGE_SIMILAR_REGIONS
 
@@ -76,9 +76,9 @@ function [groups, groups2d, ngrps] = assign_isolated_patches(groups, groups2d, n
         if max_sim > 0
             groups2d(patch_x(patch_idx), patch_y(patch_idx)) = best_group;
         else
-            ngrps = ngrps + 1;
-            groups2d(patch_x(patch_idx), patch_y(patch_idx)) = ngrps;
-            groups(ngrps, 1) = ngrps;
+            n_groups = n_groups + 1;
+            groups2d(patch_x(patch_idx), patch_y(patch_idx)) = n_groups;
+            groups(n_groups, 1) = n_groups;
         end
     end
 end

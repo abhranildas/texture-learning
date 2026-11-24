@@ -1,17 +1,20 @@
-function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
+function out = s7_segment_gtr(cfg, texture_sets, ecc, n_images, save_params)
 % S7_SEGMENT_GTR  Choose the segmentation's fixed grouping parameters on GTR images.
 %   out = s7_segment_gtr(cfg)
-%   out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
+%   out = s7_segment_gtr(cfg, texture_sets, ecc, n_images, save_params)
 %
 %   Pipeline stage 7 (Bill's GTR_segment.m + self_sup_tex_segm.m). The segmentation
 %   (segmentation.segment_lms) has two kinds of parameters:
 %     - per image, learned self-supervised from that image alone: the grouping
-%       criterion gcopt and the mutual-similarity weight wmopt;
-%     - fixed, shared by all images: the offset added to gcopt, the confidence
+%       criterion group_crit_best (paper gamma_l) and the mutual-similarity weight
+%       mutual_weight_best (paper w_m);
+%     - fixed, shared by all images: the offset added to group_crit_best, the
+%       confidence
 %       criterion and the region-merge criterion (cfg.segment).
 %   This stage chooses the fixed ones, as in the paper ("learned by maximizing
 %   average segmentation accuracy over all six kinds of GTR image"). For n_images
-%   GTR images of each texture set in itypes, it segments each image over a grid of
+%   GTR images of each texture set in texture_sets, it segments each image over a
+%   grid of
 %   offsets x merge criteria (method and confidence criterion stay at cfg.segment),
 %   counts the regions segmented exactly right, and picks the cell with the highest
 %   mean over all images and sets. Ties go to the first cell in column order, as in
@@ -24,7 +27,7 @@ function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
 %
 %   Inputs
 %     cfg          config struct (config.m).
-%     itypes       texture sets (see load_texture_images); default [3 2 4 5 6 1],
+%     texture_sets texture sets (see load_texture_images); default [3 2 4 5 6 1],
 %                  Bill's six.
 %     ecc          eccentricity downsample factor (1, 2, 4, 8); default 1.
 %     n_images     GTR images per texture set; default 120.
@@ -37,25 +40,25 @@ function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
 %       .frac_exact    fraction of images with every region right, merge x offset
 %       .merge, .offset  the swept grids
 %       .params      chosen fixed parameters (cfg.segment with offset/merge replaced)
-%       .itypes, .ecc, .n_images
+%       .texture_sets, .ecc, .n_images
 %
 %   See also SEGMENTATION.SEGMENT_LMS, SEGMENTATION.LEARN_IMAGE_SIMILARITY,
 %   MAKE_GTR_IMAGE, LOAD_TEXTURE_IMAGES, CONFIG
 
-    if nargin < 2 || isempty(itypes),      itypes = [3 2 4 5 6 1]; end
+    if nargin < 2 || isempty(texture_sets), texture_sets = [3 2 4 5 6 1]; end
     if nargin < 3 || isempty(ecc),         ecc = 1; end
     if nargin < 4 || isempty(n_images),    n_images = 120; end
     if nargin < 5 || isempty(save_params), save_params = false; end
 
     merge_vec  = 0 : 0.2 : 1.4;          % region-merge criterion (Bill's gr grid)
-    offset_vec = -1.25 : 0.25 : 1.25;    % offset added to gcopt (Bill's gl grid)
+    offset_vec = -1.25 : 0.25 : 1.25;    % offset added to group_crit_best (Bill's gl grid)
     params = cfg.segment;                % method and confidence stay fixed
-    ntexr  = cfg.gtr.n_regions;
-    n_correct = zeros(numel(merge_vec), numel(offset_vec), n_images, numel(itypes));
+    n_regions = cfg.gtr.n_regions;
+    n_correct = zeros(numel(merge_vec), numel(offset_vec), n_images, numel(texture_sets));
 
     rng(cfg.seed);
-    for t = 1:numel(itypes)
-        textures = itypes(t);              % loaded on the first image, then reused
+    for t = 1:numel(texture_sets)
+        textures = texture_sets(t);        % loaded on the first image, then reused
         for k = 1:n_images
             [pimg, map, ~, textures] = make_gtr_image(cfg, textures, 1, ecc);
             S = segmentation.learn_image_similarity(cfg, pimg, map, params.method);
@@ -63,22 +66,22 @@ function out = s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)
                 for m = 1:numel(merge_vec)
                     p = params;  p.group_offset = offset_vec(o);  p.merge = merge_vec(m);
                     seg = segmentation.segment_lms(cfg, [], map, p, S);
-                    n_correct(m, o, k, t) = seg.nrg;
+                    n_correct(m, o, k, t) = seg.n_correct;
                 end
             end
         end
-        fprintf('s7: texture set %d done (%d images)\n', itypes(t), n_images);
+        fprintf('s7: texture set %d done (%d images)\n', texture_sets(t), n_images);
     end
 
-    frac_correct = mean(n_correct, [3 4]) / ntexr;
+    frac_correct = mean(n_correct, [3 4]) / n_regions;
     [~, best] = max(frac_correct, [], 'all', 'linear');
     [m, o] = ind2sub(size(frac_correct), best);
     params.group_offset = offset_vec(o);
     params.merge = merge_vec(m);
 
     out = struct('n_correct', n_correct, 'frac_correct', frac_correct, ...
-        'frac_exact', mean(n_correct == ntexr, [3 4]), 'merge', merge_vec, ...
-        'offset', offset_vec, 'params', params, 'itypes', itypes, 'ecc', ecc, ...
+        'frac_exact', mean(n_correct == n_regions, [3 4]), 'merge', merge_vec, ...
+        'offset', offset_vec, 'params', params, 'texture_sets', texture_sets, 'ecc', ecc, ...
         'n_images', n_images);
     fprintf(['s7: best offset %.2f, merge %.2f (confidence %.2f): %.1f%% of regions ' ...
              'exactly right\n'], params.group_offset, params.merge, params.confidence, ...

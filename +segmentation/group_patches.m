@@ -1,8 +1,8 @@
-function [groups, ngrps, groups2d] = group_patches(similarity, distance, ...
+function [groups, n_groups, groups2d] = group_patches(similarity, distance, ...
         group_criterion, confidence_criterion, neighbor_distance, patch_x, patch_y, ...
         content_sim, merge_criterion)
 % GROUP_PATCHES  Segment patches by local-similarity, transitive, isolated, and region grouping.
-%   [groups, ngrps, groups2d] = segmentation.group_patches(similarity, distance, ...
+%   [groups, n_groups, groups2d] = segmentation.group_patches(similarity, distance, ...
 %       group_criterion, confidence_criterion, neighbor_distance, ...
 %       patch_x, patch_y, content_sim, merge_criterion)
 %
@@ -27,7 +27,7 @@ function [groups, ngrps, groups2d] = group_patches(similarity, distance, ...
 %
 %   Outputs
 %     groups   - group membership (row per group, patch indices, 0-padded).
-%     ngrps    - number of groups.
+%     n_groups - number of groups.
 %     groups2d - [n_grid_rows x n_grid_cols] region-label map (grid rows x cols).
 %
 %   See also SEGMENTATION.MUTUAL_SIMILARITY, SEGMENTATION.ASSIGN_ISOLATED_PATCHES,
@@ -51,7 +51,7 @@ function [groups, ngrps, groups2d] = group_patches(similarity, distance, ...
     end
 
     % --- 2. transitive grouping: extract connected components of the link graph ---
-    ngrps = 0;
+    n_groups = 0;
     groups = zeros(n, 2*n);
     done = false;
     while ~done
@@ -89,8 +89,8 @@ function [groups, ngrps, groups2d] = group_patches(similarity, distance, ...
             i = node_list(ptr, 2);          % next node (0 terminates)
         end
 
-        ngrps = ngrps + 1;
-        groups(ngrps, :) = sort(node_list(:, 2), 'descend');
+        n_groups = n_groups + 1;
+        groups(n_groups, :) = sort(node_list(:, 2), 'descend');
         for idx = 1:ptr-1                   % remove this component's nodes from the graph
             links(node_list(idx, 2), :) = 0;
             links(:, node_list(idx, 2)) = 0;
@@ -98,7 +98,7 @@ function [groups, ngrps, groups2d] = group_patches(similarity, distance, ...
     end
 
     % --- build the initial 2-D map and per-group counts ---
-    [groups2d, group_counts] = build_group_map(groups, ngrps, patch_x, patch_y);
+    [groups2d, group_counts] = build_group_map(groups, n_groups, patch_x, patch_y);
 
     % collect still-unlinked patches
     unlinked = zeros(n, 2);
@@ -112,35 +112,35 @@ function [groups, ngrps, groups2d] = group_patches(similarity, distance, ...
         end
     end
 
-    % --- 3. isolated-patch grouping (ngrps update intentionally discarded, as in original) ---
+    % --- 3. isolated-patch grouping (its n_groups update discarded, as in the original) ---
     [groups, groups2d] = segmentation.assign_isolated_patches( ...
-        groups, groups2d, ngrps, n, patch_x, patch_y, content_sim);
+        groups, groups2d, n_groups, n, patch_x, patch_y, content_sim);
     for k = 1:n_unlinked
         gn = groups2d(unlinked(k, 1), unlinked(k, 2));
         loc = (unlinked(k, 1) - 1) * n_grid_cols + unlinked(k, 2);
-        if gn <= ngrps
+        if gn <= n_groups
             groups(gn, group_counts(gn)) = loc;
             group_counts(gn) = group_counts(gn) + 1;
         else
             group_counts(gn) = group_counts(gn) + 1;
             groups(gn, 1) = loc;
-            ngrps = ngrps + 1;
+            n_groups = n_groups + 1;
         end
     end
 
     % --- 4. region-similarity grouping (single best merge) ---
-    [groups, ngrps] = segmentation.merge_similar_regions( ...
-        groups, ngrps, group_counts, groups2d, content_sim, merge_criterion);
+    [groups, n_groups] = segmentation.merge_similar_regions( ...
+        groups, n_groups, group_counts, groups2d, content_sim, merge_criterion);
 
     % --- final 2-D map ---
-    groups2d = build_group_map(groups, ngrps, patch_x, patch_y);
+    groups2d = build_group_map(groups, n_groups, patch_x, patch_y);
 end
 
-function [groups2d, group_counts] = build_group_map(groups, ngrps, patch_x, patch_y)
+function [groups2d, group_counts] = build_group_map(groups, n_groups, patch_x, patch_y)
 % Build the 2-D region-label map and per-group patch-count (+1) from membership.
     groups2d = zeros(max(patch_x), max(patch_y));
     group_counts = zeros(numel(patch_x), 1);
-    for grp = 1:ngrps
+    for grp = 1:n_groups
         i = 1;
         while groups(grp, i) > 0
             groups2d(patch_x(groups(grp, i)), patch_y(groups(grp, i))) = grp;

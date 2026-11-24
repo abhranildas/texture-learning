@@ -15,7 +15,8 @@ function out = segment_bill_image(cfg, img, map, level, params)
 %     level   resolution scale-down level (Bill's flgs(1)).
 %     params  fixed segmentation parameters (default cfg.segment).
 %   Output
-%     out  segmentation.segment_lms output (.emap, .ngrps, .nrg, .pcmx, .stages)
+%     out  segmentation.segment_lms output (.n_groups, .est_map, .n_correct,
+%          .accuracy_best, .stages)
 %
 % See also CHECK_BILL_SEGMENTATION, COMPARE_OTF_BILL, SEGMENTATION.SEGMENT_LMS
 

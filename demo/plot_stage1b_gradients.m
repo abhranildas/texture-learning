@@ -1,8 +1,8 @@
-function plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
+function plot_stage1b_gradients(cfg, gradient_pca, X, n_resp_images)
 % PLOT_STAGE1B_GRADIENTS  The multi-scale first-derivative (gradient) structure of
 %   natural images, and the gradient PCs the model can use (stage 1b).
-%   plot_stage1b_gradients(cfg, pcg, X)
-%   plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
+%   plot_stage1b_gradients(cfg, gradient_pca, X)
+%   plot_stage1b_gradients(cfg, gradient_pca, X, n_resp_images)
 %
 %   Draws the output of s1b_learn_gradient_pca: the H/V first-derivative responses
 %   at the scales cfg.pcgrad.sd_list, on isolated 64x64 patches of the achromatic
@@ -22,13 +22,13 @@ function plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
 %
 % Inputs
 %   cfg  config struct.
-%   pcg  learned PCA struct from s1b_learn_gradient_pca (in full mode, learned
-%        from all natural images and saved; in quick mode, from one image).
+%   gradient_pca  learned PCA struct from s1b_learn_gradient_pca (in full mode,
+%        learned from all natural images and saved; in quick mode, from one image).
 %   X    gradient responses (second output of s1b_learn_gradient_pca).
-%   n_resp_images  number of images X comes from (default pcg.n_images, i.e. X is
-%        what the PCA was run on). In quick mode with the gradient-PCA model on, X
-%        is one image's responses while pcg is the saved model; the title then says
-%        so, and the PC correlations are only near identity (a PCA decorrelates
+%   n_resp_images  number of images X comes from (default gradient_pca.n_images,
+%        i.e. X is what the PCA was run on). In quick mode with the gradient-PCA
+%        model on, X is one image's responses while gradient_pca is the saved model;
+%        the title then says so, and the PC correlations are only near identity (a PCA decorrelates
 %        exactly only the data it was fitted to).
 % Output
 %   none (draws the figure)
@@ -36,7 +36,7 @@ function plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
 % See also S1B_LEARN_GRADIENT_PCA, VISLAB.LIB.MULTISCALE_GRAD_RESPONSES,
 %   VISLAB.LIB.PC_GRAD_RESPONSE, PLOT_STAGE1, PLOT_STAGE2
 
-    sd_list = pcg.sd_list;
+    sd_list = gradient_pca.sd_list;
     n_scales = numel(sd_list);
     nf = 2 * n_scales;
     scatter_pts = cfg.demo.scatter_points;   % cap for the SCATTER only (PCA uses every sample)
@@ -44,8 +44,8 @@ function plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
 
     % --- statistics: column order of X is [H sigma1..N, V sigma1..N] ---
     C_raw = corrcoef(X);                                        % (2*n_scales) square
-    pca_coeff = pcg.coeff;  explained = pcg.explained;
-    score = (X - pcg.mu) * pca_coeff;                           % PC responses
+    pca_coeff = gradient_pca.coeff;  explained = gradient_pca.explained;
+    score = (X - gradient_pca.mu) * pca_coeff;                           % PC responses
     C_pc = corrcoef(score);                                     % PC response correlations (~identity)
     score2 = score(:, 1:2);                                     % first 2 PCs, for the scatter
     clear score
@@ -53,7 +53,7 @@ function plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
 
     % --- exact filters: impulse responses of the model's filtering. Because H is
     %     uncorrelated with V, each PC is (nearly) pure-H or pure-V. ---
-    [raw_filt, pc_filt, K] = pc_filter_images(pcg);
+    [raw_filt, pc_filt, K] = pc_filter_images(gradient_pca);
     pc_isH = sum(abs(pca_coeff(1:n_scales, :)), 1) >= sum(abs(pca_coeff(n_scales+1:end, :)), 1);
 
     cmap_div = local_diverging();                                      % red(-)-white-blue(+)
@@ -63,12 +63,12 @@ function plot_stage1b_gradients(cfg, pcg, X, n_resp_images)
            'Position', [40 40 1500 980]);
     t = tiledlayout(3, 12, 'TileSpacing', 'loose', 'Padding', 'compact');
     t.Units = 'normalized'; t.OuterPosition = [0 0 1 0.93];   % leave a top strip for the title
-    if nargin < 4 || isempty(n_resp_images), n_resp_images = pcg.n_images; end
+    if nargin < 4 || isempty(n_resp_images), n_resp_images = gradient_pca.n_images; end
     img_txt = @(n) sprintf('%d natural image%s', n, repmat('s', 1, n ~= 1));
-    if n_resp_images == pcg.n_images
-        src_txt = img_txt(pcg.n_images);
+    if n_resp_images == gradient_pca.n_images
+        src_txt = img_txt(gradient_pca.n_images);
     else
-        src_txt = sprintf('PCs from %s; responses from %s', img_txt(pcg.n_images), ...
+        src_txt = sprintf('PCs from %s; responses from %s', img_txt(gradient_pca.n_images), ...
             img_txt(n_resp_images));
     end
     annotation(gcf, 'textbox', [0.1 0.94 0.8 0.05], ...

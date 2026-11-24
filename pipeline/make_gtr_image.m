@@ -1,7 +1,7 @@
 function [imgs, maps, texs, textures] = make_gtr_image(cfg, textures, n_images, ecc, seed)
 % MAKE_GTR_IMAGE  Make grown-texture-region (GTR) images and their region maps.
-%   [imgs, maps] = make_gtr_image(cfg, itype)
-%   [imgs, maps, texs, textures] = make_gtr_image(cfg, itype, n_images, ecc, seed)
+%   [imgs, maps] = make_gtr_image(cfg, texture_set)
+%   [imgs, maps, texs, textures] = make_gtr_image(cfg, texture_set, n_images, ecc, seed)
 %   [imgs, maps] = make_gtr_image(cfg, textures, n_images)
 %
 %   A GTR image is a cfg.gtr.szp x cfg.gtr.szp grid of patches divided into

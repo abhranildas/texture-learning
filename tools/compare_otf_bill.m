@@ -1,7 +1,7 @@
-function result = compare_otf_bill(itypes, n_images, out_dir, bill_root)
+function result = compare_otf_bill(texture_sets, n_images, out_dir, bill_root)
 % COMPARE_OTF_BILL  Segment GTR images with Bill's code under his and the corrected optics filter.
 %   result = compare_otf_bill()
-%   result = compare_otf_bill(itypes, n_images, out_dir, bill_root)
+%   result = compare_otf_bill(texture_sets, n_images, out_dir, bill_root)
 %
 %   For each texture set, makes n_images GTR images with Bill's mk_GTR_images.m and
 %   segments each one five ways:
@@ -39,19 +39,19 @@ function result = compare_otf_bill(itypes, n_images, out_dir, bill_root)
 %   corrected filter (docs/segmentation-parity.md, step 5).
 %
 %   Inputs
-%     itypes     texture sets (1 Pertex, 2 Fabric, 3 Brodatz, 4 Brodatz+Fabric,
+%     texture_sets  texture sets (1 Pertex, 2 Fabric, 3 Brodatz, 4 Brodatz+Fabric,
 %                5 VisTex, 6 McGill); default [3 2 4 5 6 1].
 %     n_images   GTR images per texture set; default 4.
 %     out_dir    folder for the PNGs; default data/stimuli/otf_comparison.
 %     bill_root  folder holding Bill's code (default: the sibling "Bill's code").
 %   Output
-%     result  struct array, one per texture set: .itype, .name, .n_correct
+%     result  struct array, one per texture set: .texture_set, .name, .n_correct
 %             (5 x n_images, regions exactly right; rows = segmentations 1-5)
 %
 % See also CAPTURE_BILL_SEGMENTATION, SEGMENT_BILL_IMAGE, OTF_PPD
 
     repo_root = fileparts(fileparts(mfilename('fullpath')));
-    if nargin < 1 || isempty(itypes),    itypes = [3 2 4 5 6 1]; end
+    if nargin < 1 || isempty(texture_sets), texture_sets = [3 2 4 5 6 1]; end
     if nargin < 2 || isempty(n_images),  n_images = 4; end
     if nargin < 3 || isempty(out_dir)
         out_dir = fullfile(repo_root, 'data', 'stimuli', 'otf_comparison');
@@ -109,10 +109,10 @@ function result = compare_otf_bill(itypes, n_images, out_dir, bill_root)
 
     n_bill = numel(bill_runs);
     n_runs = n_bill + numel(repo_cfgs);      % Bill's runs, then the repo's
-    result = struct('itype', {}, 'name', {}, 'n_correct', {});
-    for t = 1:numel(itypes)
-        name = set_names{itypes(t)};
-        [gtrimg, maps, texs] = bill_mk_gtr_images(itypes(t), n_images, seed);
+    result = struct('texture_set', {}, 'name', {}, 'n_correct', {});
+    for t = 1:numel(texture_sets)
+        name = set_names{texture_sets(t)};
+        [gtrimg, maps, texs] = bill_mk_gtr_images(texture_sets(t), n_images, seed);
         ntexr = size(texs, 2);
         counts = zeros(n_runs, n_images);
         shown  = cell(n_runs + 1, n_images); % {display image, region map} per panel
@@ -141,15 +141,15 @@ function result = compare_otf_bill(itypes, n_images, out_dir, bill_root)
             for c = 1:numel(repo_cfgs)
                 rng(state);
                 seg_new = segment_bill_image(repo_cfgs{c}, img, map, P.flgs(1), params_new);
-                counts(n_bill + c, k) = seg_new.nrg;
-                shown{n_bill + c + 1, k} = {repo_shown{c}, seg_new.emap};
+                counts(n_bill + c, k) = seg_new.n_correct;
+                shown{n_bill + c + 1, k} = {repo_shown{c}, seg_new.est_map};
             end
             path(bill_path);
         end
 
         plot_comparison(name, row_labels, shown, maps, counts, ntexr, ...
             fullfile(out_dir, sprintf('otf_comparison_%s.png', strrep(name, '+', '_'))));
-        result(t) = struct('itype', itypes(t), 'name', name, 'n_correct', counts);
+        result(t) = struct('texture_set', texture_sets(t), 'name', name, 'n_correct', counts);
         fprintf('%-15s regions exactly right per row: %s\n', name, ...
             sprintf('%5.1f%% ', 100 * mean(counts, 2) / ntexr));
     end

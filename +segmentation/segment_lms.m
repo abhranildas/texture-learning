@@ -16,16 +16,18 @@ function out = segment_lms(cfg, pimg, map, params, S)
 %             the result; pass zeros(rows, cols) when there is no ground truth.
 %     params  struct (default cfg.segment):
 %               .method        self-supervised rule ('bc', 'nc' or 'ncb')
-%               .group_offset  added to the learned criterion gcopt (Bill's gl)
-%               .confidence    confidence criterion (Bill's gcc)
-%               .merge         region-merge criterion (Bill's gr)
+%               .group_offset  added to the learned criterion group_crit_best
+%                              (Bill's gl)
+%               .confidence    confidence criterion (paper gamma_c; Bill's gcc)
+%               .merge         region-merge criterion (paper gamma_r; Bill's gr)
 %     S       optional learn_image_similarity output for this image and
 %             params.method, so a sweep over the other parameters learns it once
 %             (pimg is then unused).
 %   Output
-%     out  struct: .emap (estimated region map), .ngrps (number of regions),
-%          .nrg (regions exactly matching a ground-truth region), .pcmx
-%          (same/different accuracy at the learned settings), .stages (S)
+%     out  struct: .n_groups (number of regions found), .est_map (estimated
+%          region map, patches x patches), .n_correct (regions exactly matching a
+%          ground-truth region), .accuracy_best (same/different accuracy at the
+%          learned settings), .stages (S)
 %
 % See also SEGMENTATION.LEARN_IMAGE_SIMILARITY, SEGMENTATION.GROUP_PATCHES,
 %   SEGMENTATION.COUNT_CORRECT_REGIONS, S7_SEGMENT_GTR
@@ -34,10 +36,10 @@ function out = segment_lms(cfg, pimg, map, params, S)
     if nargin < 5 || isempty(S)
         S = segmentation.learn_image_similarity(cfg, pimg, map, params.method);
     end
-    [~, out.ngrps, out.emap] = segmentation.group_patches(S.mu, S.dst, ...
-        S.gcopt + params.group_offset, params.confidence, S.patch_size, ...
-        S.patch_x, S.patch_y, S.phiall, params.merge);
-    out.nrg = segmentation.count_correct_regions(map, max(map(:)), out.emap, out.ngrps);
-    out.pcmx = S.pcmx;
+    [~, out.n_groups, out.est_map] = segmentation.group_patches(S.combined_sim, S.patch_dist, ...
+        S.group_crit_best + params.group_offset, params.confidence, S.patch_size, ...
+        S.patch_x, S.patch_y, S.content_sim, params.merge);
+    out.n_correct = segmentation.count_correct_regions(map, max(map(:)), out.est_map, out.n_groups);
+    out.accuracy_best = S.accuracy_best;
     out.stages = S;
 end

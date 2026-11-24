@@ -3,10 +3,16 @@
 Two things live here: bugs found while doing a Tier-A-only readability pass over the codebase
 (found, not fixed), and the tracked status of Bill's 2026 code revisions.
 
+> **Names.** Item 0.3.12 of `docs/repo-cleanup.md` renamed this repo's terse identifiers and the
+> names saved in `data/models` (`dbnd` → `decision_bounds`, `dv.h/e/c/b/bc` → `dv.spot/edge/content/border/border_content`,
+> `phiall`/`rho`/`phi`/`mu` → `content_sim`/`mutual_sim`/`neighbor_sim`/`combined_sim`, `itype` → `texture_set`, …).
+> Code snippets below that quote this repo's code still use the old names; translate them with the
+> table in `docs/segmentation-parity.md` (section 4). Names quoted from Bill's code are unchanged.
+
 ## Bugs found during the readability pass (not fixed)
 
 - `+segmentation/group_patches.m:112` discards `assign_isolated_patches`'s third output
-  (`ngrps`) and recomputes group growth separately in the caller — two code paths compute the
+  (`n_groups`, was `ngrps`) and recomputes group growth separately in the caller — two code paths compute the
   same count for the same event; confirm they can't diverge.
 - `+segmentation/neighbor_similarity_matrix.m` header asserts `cfg.gtr.power_suppress` and
   `cfg.dv.power_suppress` are "both 16 since Geisler unified b0" — nothing in code enforces this;
@@ -29,7 +35,7 @@ Two things live here: bugs found while doing a Tier-A-only readability pass over
 - Three bugs already flagged in-file by a previous author (not new, resurfaced for visibility):
   `neighbor_far_responses.m`'s header documents a fixed stateful-renormalization bug in the
   original code; `s7_segment_gtr.m`'s header documents an ecc-dependent neighbour-distance fix;
-  `s6_selfsup_discrimination.m`'s header documents a `pd`/`eccb` inconsistency.
+  `s6_selfsup_discrimination.m`'s header documents a `pd`/`eccb` (now `bin_ecc`) inconsistency.
 - `plot_stage7.m`'s header documents `method` as `'nc'` or `'bc'`, but the code
   (`plot_stage7.m` and identically `plot_stage8_natural.m`) does
   `struct('nc', 'c_shft', 'ncb', 'bc').(method)`, which only has fields `nc` and `ncb` — passing

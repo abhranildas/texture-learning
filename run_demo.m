@@ -136,9 +136,9 @@ if strcmp(demo_type, 'full')
     % the first 4 PCs only when the gradient-PCA features are on; the PCA is
     % learned (and plotted) either way.
     fprintf('-> Running Stage 1b: s1b_learn_gradient_pca...\n');
-    [pcg_s1b, X_s1b] = s1b_learn_gradient_pca(cfg, true);
-    n_resp_s1b = pcg_s1b.n_images;                 % responses are what the PCA ran on
-    if pca_grad, cfg.pcgrad.model = pcg_s1b; end   % cfg was built before s1b saved it
+    [gradient_pca_s1b, X_s1b] = s1b_learn_gradient_pca(cfg, true);
+    n_resp_s1b = gradient_pca_s1b.n_images;                 % responses are what the PCA ran on
+    if pca_grad, cfg.pcgrad.model = gradient_pca_s1b; end   % cfg was built before s1b saved it
 
     % Stage 2+3: Learn Feature Priors AND Make Near/Far Training Pairs (single pass)
     % In one pass over the natural images, compute the natural prior distributions
@@ -201,9 +201,9 @@ else
     pca_ok = false;
     pca_file = fullfile(cfg.paths.models, decision_bounds_filename(cfg, 1));
     if pca_grad && isfile(pca_file)
-        S_pca = load(pca_file, 'dbnd');
-        pca_ok = isfield(S_pca.dbnd, 'edge_dims') && ...
-            isequal(S_pca.dbnd.edge_dims, cfg.features.edge_dv_dims);
+        S_pca = load(pca_file, 'decision_bounds');
+        pca_ok = isfield(S_pca.decision_bounds, 'edge_dims') && ...
+            isequal(S_pca.decision_bounds.edge_dims, cfg.features.edge_dv_dims);
     end
     if pca_grad && ~pca_ok
         fprintf(['No up-to-date gradient-PCA model found (missing, or trained for an\n' ...
@@ -232,9 +232,9 @@ else
     % quick mode: the stage 1b responses come from a single image; the PCs drawn are
     % the shipped ones the model uses if the gradient-PCA model is on, else that
     % image's own PCA
-    [pcg_s1b, X_s1b] = s1b_learn_gradient_pca(cfg, false, true);
+    [gradient_pca_s1b, X_s1b] = s1b_learn_gradient_pca(cfg, false, true);
     n_resp_s1b = 1;
-    if ~isempty(cfg.pcgrad.model), pcg_s1b = cfg.pcgrad.model; end
+    if ~isempty(cfg.pcgrad.model), gradient_pca_s1b = cfg.pcgrad.model; end
 end
 
 %% --- PLOTTING STAGES 1-5 ---
@@ -245,7 +245,7 @@ ecc = 1;
 fprintf('-> Plotting Stage 1 (colour transforms)...\n');
 plot_stage1(cfg, coeff_s1);
 fprintf('-> Plotting Stage 1b (multi-scale gradient structure)...\n');
-plot_stage1b_gradients(cfg, pcg_s1b, X_s1b, n_resp_s1b);
+plot_stage1b_gradients(cfg, gradient_pca_s1b, X_s1b, n_resp_s1b);
 fprintf('-> Plotting Stage 2 (feature priors)...\n');
 plot_stage2(cfg, ecc);
 fprintf('-> Plotting Stage 3 (near/far pairs)...\n');
@@ -310,10 +310,11 @@ fprintf('\nStage 7a Result: %.0f%% of regions segmented exactly right (%d images
 drawnow;
 
 % --- 3b. per-image pair accuracy and segmentation on GTR images, every texture set ---
-% Bill's test_ss_disc.m measure: for each image, gc and wm are learned from
-% proximity alone, then scored against the true regions; plus the fraction of
-% regions segmented exactly right. 20 images per set matches his slides (120
-% images total, the slowest step of the demo); lower n_acc_images for a quicker run.
+% Bill's test_ss_disc.m measure: for each image, the grouping criterion and
+% mutual-similarity weight are learned from proximity alone, then scored against
+% the true regions; plus the fraction of regions segmented exactly right. 20
+% images per set matches his slides (120 images total, the slowest step of the
+% demo); lower n_acc_images for a quicker run.
 n_acc_images = 20;
 fprintf('\n--- Stage 7b: GTR Accuracy per Texture Set (6 sets x %d images) ---\n', n_acc_images);
 [pair_acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_acc_images);
@@ -326,7 +327,7 @@ drawnow;
 % --- 4. apply the same segmentation to a natural image (self-supervised, no ground truth) ---
 fprintf('\n--- Stage 8: Natural-Image Segmentation ---\n');
 fprintf('Running the same self-supervised segmentation (64x64 patches) on a natural image.\n');
-fprintf('It has no ground-truth regions, so gcopt/wmopt are still learned from proximity,\n');
+fprintf('It has no ground-truth regions, so group_crit_best/mutual_weight_best are still learned from proximity,\n');
 fprintf('and the fixed grouping parameters are the same as in Stage 7a.\n');
 plot_stage8_natural(cfg, ecc);
 

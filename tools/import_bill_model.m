@@ -40,35 +40,42 @@ function import_bill_model(bill_root)
     bound = @(name, var) getfield(load(fullfile(src, [name '.mat']), var), var);
 
     % --- achromatic decision bounds (spot dims [1 13 14]) ---
-    dbnd = struct('h', bound('dbndhNO1', 'dbndh'), 'e', bound('dbndeNO1', 'dbnde'), ...
-        'c', bound('dbndcNO1', 'dbndc'), 'b', bound('dbndbNO1', 'dbndb'), ...
-        'bc', bound('dbndbcNO1', 'dbndbc'), 'spot_dims', [1 13 14], 'spot_achr_n', 3);
-    save(fullfile(models, decision_bounds_filename(cfg, 1)), 'dbnd');
+    % Bill's bound names map to ours as dbndh -> spot, dbnde -> edge, dbndc -> content,
+    % dbndb -> border, dbndbc -> border_content, dbndha/hb -> spot_achr/spot_chrom
+    % (docs/segmentation-parity.md); n_spot_achr = number of achromatic spot dims.
+    decision_bounds = struct('spot', bound('dbndhNO1', 'dbndh'), ...
+        'edge', bound('dbndeNO1', 'dbnde'), ...
+        'content', bound('dbndcNO1', 'dbndc'), 'border', bound('dbndbNO1', 'dbndb'), ...
+        'border_content', bound('dbndbcNO1', 'dbndbc'), 'spot_dims', [1 13 14], 'n_spot_achr', 3);
+    save(fullfile(models, decision_bounds_filename(cfg, 1)), 'decision_bounds');
 
     % --- colour decision bounds (spot dims [1 13 14 2 3]): achromatic and chromatic
     %     spot sub-DVs ha, hb, combined by h, as load_dv_handles composes them ---
-    dbnd = struct('ha', bound('dbndahNO1', 'dbndha'), 'hb', bound('dbndbhNO1', 'dbndhb'), ...
-        'h', bound('dbndchNO1', 'dbndh'), 'e', bound('dbndceNO1', 'dbnde'), ...
-        'c', bound('dbndccNO1', 'dbndc'), 'b', bound('dbndcbNO1', 'dbndb'), ...
-        'bc', bound('dbndcbcNO1', 'dbndbc'), 'spot_dims', [1 13 14 2 3], 'spot_achr_n', 3);
-    save(fullfile(models, decision_bounds_filename(cfg_color, 1)), 'dbnd');
+    decision_bounds = struct('spot_achr', bound('dbndahNO1', 'dbndha'), ...
+        'spot_chrom', bound('dbndbhNO1', 'dbndhb'), ...
+        'spot', bound('dbndchNO1', 'dbndh'), 'edge', bound('dbndceNO1', 'dbnde'), ...
+        'content', bound('dbndccNO1', 'dbndc'), 'border', bound('dbndcbNO1', 'dbndb'), ...
+        'border_content', bound('dbndcbcNO1', 'dbndbc'), 'spot_dims', [1 13 14 2 3], ...
+        'n_spot_achr', 3);
+    save(fullfile(models, decision_bounds_filename(cfg_color, 1)), 'decision_bounds');
 
     % --- adaptive histogram bins, natural-image type 5, with optics ---
     eccs = [1 2 4 8];
-    btype = 5;
+    bound_type = 5;                             % histogram-bound type: natural images
     features = [1 2 3 5 6 7 9 10 11 13 14];     % the features Bill has bins for
     bin_bounds = cell(14, numel(eccs));
     n_bins = zeros(14, numel(eccs));
     for e = 1:numel(eccs)
         for f = features
-            B = load(fullfile(src, sprintf('AHEO%d%d%d.mat', btype, f, eccs(e))), 'bnds', 'nbnds');
+            B = load(fullfile(src, sprintf('AHEO%d%d%d.mat', bound_type, f, eccs(e))), ...
+                'bnds', 'nbnds');
             assert(numel(B.bnds) == B.nbnds, 'import_bill_model:bins', ...
-                'AHEO%d%d%d.mat: nbnds disagrees with bnds', btype, f, eccs(e));
+                'AHEO%d%d%d.mat: nbnds disagrees with bnds', bound_type, f, eccs(e));
             bin_bounds{f, e} = B.bnds(:).';
             n_bins(f, e) = B.nbnds;
         end
     end
-    save(fullfile(models, bins_filename(cfg)), 'bin_bounds', 'n_bins', 'eccs', 'btype');
+    save(fullfile(models, bins_filename(cfg)), 'bin_bounds', 'n_bins', 'eccs', 'bound_type');
 
     % --- Bill's LMS->ABR colour rotation (used when cfg.bill_compat is on) ---
     coeff = bound('cdfs_abr_mo13_mo23_cs33_otf', 'coeff');

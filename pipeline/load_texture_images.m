@@ -1,13 +1,13 @@
-function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
+function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, texture_set, ecc)
 % LOAD_TEXTURE_IMAGES  Load and preprocess the texture-source sheets for a GTR type.
-%   [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
+%   [imgr, imgg, imgb, nimg] = load_texture_images(cfg, texture_set, ecc)
 %
-%   Loads the texture sheets for the requested itype, normalizes each sheet's
+%   Loads the texture sheets for the requested texture_set, normalizes each sheet's
 %   luminance and contrast (if cfg.gtr.normalize_sheets), applies eye optics,
 %   converts to LMS, and downsamples to eccentricity `ecc`. Returns the three LMS
 %   channel stacks (each sz x sz x nimg). Shared by pipeline stages s6 and s7.
 %
-%   itype: 1 Pertex | 2 Fabric | 3 Brodatz | 4 Brodatz+Fabric | 5 VisTex | 6 McGill.
+%   texture_set: 1 Pertex | 2 Fabric | 3 Brodatz | 4 Brodatz+Fabric | 5 VisTex | 6 McGill.
 %
 %   Texture sheets are read from cfg.paths.textures/<dataset>/ . Supported:
 %   Pertex (pertex/<nnn>.png, grayscale), Brodatz (brodatz/B*.gif, grayscale),
@@ -22,13 +22,13 @@ function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
 %
 %   Inputs
 %     cfg   - config struct (uses cfg.paths.textures, cfg.textures.*, cfg.patch.image_size).
-%     itype - texture dataset selector, 1-6 (see above).
+%     texture_set - texture dataset selector, 1-6 (see above).
 %     ecc   - eccentricity downsample factor (1, 2, 4, 8); sheets are loaded at
 %             sz = cfg.patch.image_size / ecc pixels per side.
 %
 %   Outputs
 %     imgr, imgg, imgb - [sz x sz x nimg] LMS channel stacks (L, M, S), pixels x images.
-%     nimg             - number of images in the stack (60, or 120 for itype 4).
+%     nimg             - number of images in the stack (60, or 120 for texture_set 4).
 %
 %   See also MAKE_GTR_IMAGE, S6_SELFSUP_DISCRIMINATION, S7_SEGMENT_GTR
 
@@ -37,7 +37,7 @@ function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
 
     % Build the file list and the per-image database name; the ingestion flags
     % (gray/gamma/resize) come from cfg.textures so they can't diverge from the twin network.
-    switch itype
+    switch texture_set
         case 2                                   % Fabric
             nimg = 60;
             files = arrayfun(@(k) fullfile(tex, 'fabric',  sprintf('FC%d.png', k)), ...
@@ -77,7 +77,7 @@ function [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc)
                 sprintf('%03d.png', k + pertex_offset)), 1:nimg, 'uni', 0);
             dbnames = repmat({'pertex'}, 1, nimg);
         otherwise
-            error('load_texture_images:badItype', 'itype must be 1-6, got %g.', itype);
+            error('load_texture_images:badItype', 'texture_set must be 1-6, got %g.', texture_set);
     end
 
     % texture sheets are test images, so cfg.optics.apply_test decides the optics.

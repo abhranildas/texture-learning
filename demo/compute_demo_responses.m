@@ -18,7 +18,7 @@ function [near, far, col] = compute_demo_responses(cfg, ecc)
 %               response-matrix column layout shared by near and far.
 %
 % See also PAIR_RESPONSES, SAMPLE_DEMO_PAIRS, PLOT_STAGE5, PLOT_STAGE5_INTERMEDIATE
-    btype         = 5;
+    bound_type         = 5;
     power_suppress = cfg.dv.power_suppress;
     edge_thresh    = cfg.dv.edge_thresh;
     patch_size     = cfg.patch.size / ecc;
@@ -26,10 +26,11 @@ function [near, far, col] = compute_demo_responses(cfg, ecc)
     edge_llr_dims  = cfg.features.edge_dv_dims;
 
     feature_list = zeros(1, 20);  feature_list(cfg.features.dv_dims) = 1;
-    cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
-    eccb = 1;
+    feature_bound_type = zeros(1, 20);  % per feature: > 0 selects it (load_bin_bounds)
+    feature_bound_type(cfg.features.dv_dims) = bound_type;
+    bin_ecc = 1;
 
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, eccb, ...
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(feature_bound_type, bin_ecc, ...
         bins_filename(cfg));
 
     [ptchn_sub, ptchf_sub] = sample_demo_pairs(cfg, ecc);

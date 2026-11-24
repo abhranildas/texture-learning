@@ -8,9 +8,9 @@ function plot_stage8_natural(cfg, ecc)
 %   is clipped to the largest rectangle that is a whole number of patches.
 %
 %   Unlike a GTR image, a natural image has NO ground-truth region map, so:
-%     * the per-image grouping criterion gcopt and mutual-similarity weight wmopt
-%       are still learned self-supervised -- they come from the near/far accuracy,
-%       which uses proximity only. An all-zero map is passed; it only sets the
+%     * the per-image grouping criterion group_crit_best and mutual-similarity
+%       weight mutual_weight_best are still learned self-supervised -- they come
+%       from the near/far accuracy, which uses proximity only. An all-zero map is passed; it only sets the
 %       patch grid and fills the unused same/different labels.
 %     * there is nothing to score the segmentation against, so no accuracy is
 %       reported; the fixed parameters are the ones chosen on GTR images (s7).
@@ -44,7 +44,7 @@ function plot_stage8_natural(cfg, ecc)
     % segment_image crops it (top-left) to whole patches
     seg = segment_image(cfg, pimg, [], ecc=ecc);
     pimg = seg.lms;
-    groups2d = seg.emap;
+    groups2d = seg.est_map;
     fprintf('stage 8: segmented a %dx%d natural image (%dx%d patches of %dpx).\n', ...
             size(pimg, 1), size(pimg, 2), size(groups2d, 1), size(groups2d, 2), patch_size);
 

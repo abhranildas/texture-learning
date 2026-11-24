@@ -25,7 +25,7 @@ Ordered roughly by expected impact on the Brodatz transfer gap.
   requested downstream; s4/s5 now request them, and train a chromatic spot sub-bound over them,
   whenever colour mode is on. The twin network itself still ignores dims 2/3 either way.
 - **ecc > 1 patch size** — the Bayesian cuts `64/ecc` patches while the network input is fixed at 64 px;
-  reconcile before comparing peripherally. Also needs same-ecc bins (s4/s5 default `eccb = 1`).
+  reconcile before comparing peripherally. Also needs same-ecc bins (s5 default `bin_ecc = 1`).
 
 ### 3. Feature visualization during training
 

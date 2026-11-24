@@ -1,18 +1,18 @@
-function [ptch, same_gt] = sample_texture_pairs(cfg, ecc, npairs, itype)
+function [ptch, same_gt] = sample_texture_pairs(cfg, ecc, npairs, texture_set)
 % SAMPLE_TEXTURE_PAIRS  Random same/different texture-sheet patch pairs, for the
 %   Stage 6 qualitative same/different demo. For each of npairs draws, either takes
 %   two patches from two different locations of ONE randomly chosen sheet ("same"
 %   texture) or one patch each from two distinct randomly chosen sheets
 %   ("different" texture), with roughly half of the draws same and half different.
-%   (Was sample_brodatz_pairs.m; generalized to any load_texture_images itype so
+%   (Was sample_brodatz_pairs.m; generalized to any load_texture_images texture set so
 %   Stage 6 can run on a colour database -- Brodatz is grayscale, so it carries no
 %   chromatic signal; see run_demo.m.)
 %
 %   Inputs
 %     cfg, ecc, npairs - as elsewhere; ecc is the eccentricity divisor (patch
 %                        geometry is divided by it).
-%     itype            - texture database (load_texture_images itype); default 3
-%                         (Brodatz).
+%     texture_set      - texture database (see load_texture_images); default 3
+%                        (Brodatz).
 %
 %   Output
 %     ptch    - pair tensor [patch_size x 2*patch_size x nch x npairs]
@@ -20,11 +20,11 @@ function [ptch, same_gt] = sample_texture_pairs(cfg, ecc, npairs, itype)
 %     same_gt - [npairs x 1] logical ground truth, true = same texture.
 %
 % See also LOAD_TEXTURE_IMAGES, PLOT_STAGE6_PAIRS
-    if nargin < 4 || isempty(itype), itype = 3; end
+    if nargin < 4 || isempty(texture_set), texture_set = 3; end
     patch_size = cfg.patch.size / ecc;
     [prep, nch] = pair_patch_prep(cfg);
 
-    [imgr, imgg, imgb, nimg] = load_texture_images(cfg, itype, ecc);
+    [imgr, imgg, imgb, nimg] = load_texture_images(cfg, texture_set, ecc);
     sheet_size = size(imgr, 1);
 
     ptch = zeros(patch_size, 2*patch_size, nch, npairs);

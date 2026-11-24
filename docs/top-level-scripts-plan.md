@@ -7,7 +7,7 @@ slide 1) lists the main scripts a user of his code runs. This plan gives this re
 
 | # | Task | Bill's scripts | This repo now |
 |---|---|---|---|
-| 1 | Make GTR test images and save them as fixed sets of 20 | `mk_GTR_images` | `make_gtr_image(cfg, itype, n_images, ecc, seed)` makes a set in one call; saving is `save(file, 'imgs', 'maps')` |
+| 1 | Make GTR test images and save them as fixed sets of 20 | `mk_GTR_images` | `make_gtr_image(cfg, texture_set, n_images, ecc, seed)` makes a set in one call; saving is `save(file, 'imgs', 'maps')` |
 | 2 | Discrimination on all 6 texture sets, with a bar plot | `GTR_disc` → `self_sup_tex_disc`, then `GTR_disc_plot` | `pipeline/s6_selfsup_discrimination` does one set; no loop over sets; not called by `run_demo` |
 | 3 | Learn the fixed segmentation parameters, with a bar plot of % regions exactly right | `GTR_segment` → `self_sup_tex_segm`, then `GTR_segment_plot` | `pipeline/s7_segment_gtr` learns them; no bar plot |
 | 4 | Test discrimination on a saved image set, with an accuracy histogram | `test_ss_disc` → `ss_disc` | missing |
@@ -20,9 +20,9 @@ and `self_sup_segm.m` is `self_sup_tex_segm.m`.
 
 ### 1. Top-level scripts (repo root, beside `run_demo.m`)
 
-- [x] `make_gtr_image(cfg, itype, n_images, ecc, seed)`: one call makes a set of GTR images and maps (task 1; replaces the planned `make_gtr_set`). s6, s7 and `demo/plot_stage7` use it; their random draws are unchanged
+- [x] `make_gtr_image(cfg, texture_set, n_images, ecc, seed)`: one call makes a set of GTR images and maps (task 1; replaces the planned `make_gtr_set`). s6, s7 and `demo/plot_stage7` use it; their random draws are unchanged
 - [x] `segment_image(cfg, img, map)`: segment one image (LMS array, image file, or RGB array with `rgb=true`); scores it when given the true map; shows the result when called with no output. The internal `segmentation.segment_image` is renamed `segmentation.segment_lms`. `plot_stage7` and `plot_stage8_natural` use it
-- [ ] `run_discrimination(cfg, itypes)`: run s6 on each texture set, then draw the bar plot (task 2)
+- [ ] `run_discrimination(cfg, texture_sets)`: run s6 on each texture set, then draw the bar plot (task 2)
 - [ ] `run_learn_segmentation(cfg)`: run s7, then draw the bar plot of % regions exactly right per set (task 3)
 - [ ] `test_discrimination(cfg, gtr_set)`: test discrimination on a saved set, then draw the accuracy histogram (task 4)
 - [ ] `test_segmentation(cfg, gtr_set)`: segment and score a saved set, then draw the scatter and overlays (task 5)

@@ -35,8 +35,8 @@ function cfg = config(color, optics, test_optics, pca_gradient)
 %          the learned multi-scale gradient PCs (s1b_learn_gradient_pca): PC large,
 %          mid and small gradient mag (15-17, the magnitudes of PC pairs 1-2, 3-4,
 %          5-6). They and the 1 px edge mag (5) are first merged by their own bound,
-%          the multi-scale gradient DV (dbnd.pg), which then joins the bar features
-%          in the gradient (edge) DV. Its trained files are tagged "_pcagrad".
+%          the multi-scale gradient DV (decision_bounds.ms_grad), which then joins
+%          the bar features in the gradient (edge) DV. Its trained files are tagged "_pcagrad".
 %          False leaves the model and every file name exactly as before.
 % Output
 %   cfg  struct of configuration fields, grouped as
@@ -99,7 +99,11 @@ function cfg = config(color, optics, test_optics, pca_gradient)
 
     % --- LMS->ABR colour rotation (stage s1 output), learned from natural images
     %     with or without the optics. Shared across the lab in data_root. Missing
-    %     only before s1 has been run for this optics setting. ---
+    %     only before s1 has been run for this optics setting.
+    %     LMS: long/medium/short-wavelength cone responses per pixel (images are held
+    %     as [H x W x 3] LMS arrays, named lms or pimg). ABR: the opponent axes from a
+    %     PCA of LMS -- Achromatic, Blue-yellow, Red-green. coeff is the 3x3 rotation
+    %     (its columns the principal components). ---
     cfg.paths.color_rotation = fullfile(cfg.paths.data_root, ...
         ['cps_lms2abr' cfg.optics.file_tag '.mat']);
     cfg.color_rotation = load_if_present(cfg.paths.color_rotation, 'coeff', ...
@@ -133,7 +137,8 @@ function cfg = config(color, optics, test_optics, pca_gradient)
 
     % --- patch geometry at eccentricity 1 (fovea) ---
     %   ecc throughout the pipeline is an integer divisor, not a number of degrees:
-    %   patch geometry is divided by it to move into the periphery. At ppd = 60, the
+    %   patch geometry is divided by it to move into the periphery. ecc = 1, 2, 4, 8
+    %   stand for roughly the fovea, 1.65, 4.95 and 11.55 deg. At ppd = 60, the
     %   values below are a ~1-deg patch inside a ~10-deg GTR image.
     cfg.patch.image_size = 640;   % GTR image size, pixels (eccentricity 1, fovea)
     cfg.patch.size       = 64;    % patch size, pixels (eccentricity 1, fovea)
@@ -149,8 +154,8 @@ function cfg = config(color, optics, test_optics, pca_gradient)
     cfg.textures.pertex  = struct('ext','png','gray',true, 'gamma',false,'resize',true);
 
     % --- luminance/contrast normalization ---
-    cfg.norm.target_mean     = 128;
-    cfg.norm.target_contrast = 0.25;
+    cfg.norm.target_mean     = 128;    % mean pixel value, 0-255 scale (was m0)
+    cfg.norm.target_contrast = 0.25;   % RMS contrast (was c0)
 
     % --- decision-variable computation params (content-similarity / mk_phi context) ---
     %   power_suppress is the weak Fourier-power suppression constant (beta, Bill's b0).
@@ -173,9 +178,9 @@ function cfg = config(color, optics, test_optics, pca_gradient)
     cfg.pcgrad.nsd     = 3;            % kernel width in SDs (as cfg.dv.nsd1)
     cfg.paths.gradient_pca = fullfile(cfg.paths.models, ...
         ['gradient_pca' cfg.optics.file_tag '.mat']);
-    cfg.pcgrad.model = [];             % the learned PCA (struct pcg), loaded only when used
+    cfg.pcgrad.model = [];             % the learned PCA (saved as gradient_pca), if used
     if pca_gradient
-        cfg.pcgrad.model = load_if_present(cfg.paths.gradient_pca, 'pcg', ...
+        cfg.pcgrad.model = load_if_present(cfg.paths.gradient_pca, 'gradient_pca', ...
             's1b_learn_gradient_pca');
     end
 
@@ -192,9 +197,10 @@ function cfg = config(color, optics, test_optics, pca_gradient)
     cfg.gtr.dcrit        = 7.0;   % min separation (patches) for a "far" pair
 
     % --- fixed segmentation parameters, shared by all images (segmentation.segment_lms):
-    %       method        per-image rule for learning gcopt/wmopt ('bc', see
-    %                     segmentation.learn_image_similarity)
-    %       group_offset  added to the learned gcopt (paper gamma_l offset; Bill's gl)
+    %       method        per-image rule for learning group_crit_best and
+    %                     mutual_weight_best ('bc', see segmentation.learn_image_similarity)
+    %       group_offset  added to the learned group_crit_best (paper gamma_l offset;
+    %                     Bill's gl)
     %       confidence    confidence criterion (gamma_c; Bill's gcc)
     %       merge         region-merge criterion (gamma_r; Bill's gr)
     %     Chosen by s7_segment_gtr. Before s7 has saved them for this optics setting,

@@ -100,8 +100,8 @@ images and write artifacts to `data/models/`; stages 6–7 apply/evaluate it on 
 | 2+3 | `s23_learn_priors_and_pairs(cfg, ecc)` | `priors_abr_mo13_mo23_cs33_otf_ecc_<ecc>.mat` (per-ecc natural feature priors) + `patch_pairs_ecc<ecc>.mat` (near/far training pairs), in one pass over the images |
 | 4 | `s4_optimize_bins(cfg, dims, ecc)` | `AHEO_bins.mat` (`AHE_bins.mat` without optics) — adaptive histogram bins, all features × eccentricities in one file |
 | 5 | `s5_train_decision_vars(cfg, ecc)` | `decision_bounds_ecc_<ecc>[_color][_otf].mat` (`_color` for the colour model, `_otf` when trained with the eye optics) — trained decision-variable bounds |
-| 6 | `s6_selfsup_discrimination(cfg, method, itype, ecc, ntrl)` | per-image self-supervised discrimination accuracy surfaces (runs on GTR images built from Brodatz/Fabric source textures — see Quick demo) |
-| 7 | `s7_segment_gtr(cfg, itypes, ecc, n_images, save_params)` | chooses the fixed grouping parameters (offset, merge) by segmenting many GTR images; optionally saves `segmentation_params[_otf].mat`, loaded by `config` as `cfg.segment` |
+| 6 | `s6_selfsup_discrimination(cfg, method, texture_set, ecc, n_trials)` | per-image self-supervised discrimination accuracy surfaces (runs on GTR images built from Brodatz/Fabric source textures — see Quick demo) |
+| 7 | `s7_segment_gtr(cfg, texture_sets, ecc, n_images, save_params)` | chooses the fixed grouping parameters (offset, merge) by segmenting many GTR images; optionally saves `segmentation_params[_otf].mat`, loaded by `config` as `cfg.segment` |
 
 Stages 4-5 (and everything downstream) key off `cfg.features.dv_dims`/`spot_dims`, which
 `config.m` derives from `cfg.features.color` — see Colour extension below.
@@ -127,7 +127,7 @@ Turning colour on is the one thing that costs more: patch pairs are then stored 
 (LMS/ABR) patches instead of 1-channel achromatic patches, so `patch_pairs_ecc<ecc>.mat` is larger
 on disk and in memory. Everything else (priors, bins, bounds, segmentation) scales the same either
 way. Colour and achromatic models ship as separate `decision_bounds_ecc_<ecc>[_color]_otf.mat` files
-(`dbnd.h` means something different in each mode, so they cannot share a filename) — both are
+(`decision_bounds.spot` means something different in each mode, so they cannot share a filename) — both are
 shipped in `data/models/` alongside the shared, mode-independent priors and bins files. `run_demo`
 asks whether to include colour in both modes: `full` trains whichever mode you choose from
 scratch; `quick` runs whichever mode's file is shipped, falling back (with a notice) to whichever
@@ -178,61 +178,39 @@ Here is a simple breakdown of the data files you'll encounter:
 
 ## Glossary
 
-Decoder for the terse names in this codebase: code term ↔ paper symbol/notation ↔ meaning.
-*(Paper = Geisler proximity paper and the foundational Geisler & Das segmentation paper).*
-
-### Colour & optics
-| Code | Paper | Meaning |
-|---|---|---|
-| `LMS` / `lms` | L,M,S | long/medium/short-wavelength cone responses per pixel |
-| `ABR` / `abr` | a, b, r | opponent colour axes from PCA of LMS: **A**chromatic, **B**lue-yellow, **R**ed-green |
-| `coeff` / `color_rotation` | — | 3×3 LMS→ABR rotation matrix (PCA components) |
-| `OTF` | — | optical transfer function of the eye (Watson 2013) |
-| `ppd` | — | pixels per degree (**60** for display/GTR images, **64** for the natural images: 64 px = 1°) |
-| `pd`, `w` | d, λ | pupil diameter (mm), wavelength (nm) |
-| `m0`, `c0` | — | target mean (128) and RMS contrast (0.25) for patch normalization, and for the whole texture sheets GTR images are built from (`cfg.gtr.normalize_sheets`) |
-
-### Feature dimensions (indices 1–14)
-1 A pixel · 2 B pixel · 3 R pixel · 4 edge count · 5 edge magnitude · 6 edge orientation ·
-7 edge mag×ori · 8 bar count · 9 bar magnitude · 10 bar orientation · 11 bar mag×ori ·
-12 center-surround ratio (small) · 13 center-surround linear (small) · 14 center-surround linear (large).
-The pipeline always uses edge dims **[5 9 10]** in the content DV. Spot dims are **[1 13 14]**
-(achromatic-only, the published model) or **[1 13 14 2 3]** (colour) depending on
-`cfg.features.color` — see Colour extension above.
+Paper symbols and the code names that hold them. Every other name is defined in a comment
+where the code introduces it; the feature-dimension list is in `config.m`, next to
+`cfg.features`. *(Paper = Geisler proximity paper and the foundational Geisler & Das
+segmentation paper.)*
 
 ### Decision variables (paper log-likelihood ratios ln L → code)
-| Code (vislab `vislab.nat_stat_bayes.*`) | Was | Paper | Meaning |
-|---|---|---|---|
-| `dv_power` | `Rp` | ln L_p | power-spectrum DV (complex-cell-like) |
-| `dv_spot_hist` | `Rh` | ln L_h | spot/colour + center-surround histogram DV |
-| `dv_edge_hist` | `Re` | ln L_e | edge/bar steerable-filter histogram DV |
-| `dv_border` | `Rb` | E_b, Ē_b | border edge-energy DVs (+ cross-correlation) |
-| `multinomial_llr` | (inline) | Eq. 1 / A4 | multinomial histogram log-likelihood ratio |
-| (content) | — | ln L_c | content DV = combination of power+spot+edge |
-| (border+content) | — | ln L_bc | joined similarity DV = combination of border+content |
-
-### Similarity & grouping
-| Code | Paper | Meaning |
+| Paper | Code | Meaning |
 |---|---|---|
-| `phi` / `phiall` | φ_ij | content similarity (log-likelihood ratio) between patches i,j |
-| `mu`, `u`, `rho` | μ_ij, u_ij | mutual similarity = cosine similarity of the two patches' similarity vectors |
-| `wm` | w_m | mutual-similarity weight |
-| `gc` | γ_l | local-similarity grouping criterion |
-| `cc` | γ_c | confidence criterion (weak links near the bound left unlinked) |
-| `mc` / `merge_criterion` | γ_r | region-similarity merge criterion |
-| `copt` | — | per-image optimal criterion shift learned self-supervised |
-| `p_s`, `p_d` | p_s, p_d | prob. same for near pairs / prob. different for far pairs (mixture params) |
+| ln L_p | `vislab.nat_stat_bayes.dv_power` | power-spectrum DV (complex-cell-like) |
+| ln L_h | `dv_spot_hist`; trained bound `dv.spot` | spot/colour + center-surround histogram DV |
+| ln L_e | `dv_edge_hist`; trained bound `dv.edge` | edge/bar steerable-filter histogram DV (features `cfg.features.edge_dv_dims`, which include the PC gradient features 15–17 with the gradient-PCA toggle) |
+| E_b, Ē_b | `dv_border`; trained bound `dv.border` | border edge-energy DVs (+ cross-correlation) |
+| Eq. 1 / A4 | `multinomial_llr` | multinomial histogram log-likelihood ratio |
+| ln L_c | `dv.content` | content DV = combination of power + spot + edge |
+| ln L_bc | `dv.border_content` | border + content DV |
 
-### Eccentricities, datasets, methods
-| Code | Meaning |
-|---|---|
-| `ecc` | eccentricity downsample factor 1/2/4/8 (≈ fovea, 1.65°, 4.95°, 11.55°) |
-| `btype` | histogram-bound type: **5** = natural images, **4** = Brodatz/Fabric |
-| `itype` | texture dataset: 1 Pertex · 2 Fabric · 3 Brodatz · 4 Brodatz+Fabric · 5 VisTex · 6 McGill |
-| `NO` (in `dbnd*NO`) | **N**atural-image-trained + **O**TF applied (vs `BF` = Brodatz/Fabric-trained) |
-| N, NC, NCB, NM, NCM, NCBM | training methods: N=natural-image-trained; +C content-criterion adjust; +B border adjust; +M mutual-similarity weight |
-| GTR | grown-texture-region image (random regions filled with random textures) |
-| `b0` | β, weak Fourier-power suppression constant |
+`dv` is the struct of trained handles from `load_dv_handles`; the bounds behind them are saved as
+`decision_bounds` (same field names) by `s5_train_decision_vars`.
+
+### Similarity and grouping
+| Paper | Code | Meaning |
+|---|---|---|
+| φ_ij | `content_sim` (all pairs), `neighbor_sim` (neighbours, border + content) | similarity (log-likelihood ratio) between patches i, j |
+| μ_ij, u_ij | `mutual_sim` | mutual similarity: cosine similarity of the two patches' similarity vectors |
+| w_m | `mutual_weight`, learned per image as `mutual_weight_best` | mutual-similarity weight |
+| s_ij | `combined_sim` | combined similarity, `neighbor_sim + mutual_weight_best * mutual_sim` |
+| γ_l | `group_crit`, learned per image as `group_crit_best` (+ `cfg.segment.group_offset`) | local-similarity grouping criterion |
+| γ_c | `cfg.segment.confidence` | confidence criterion (links this close to γ_l are left out) |
+| γ_r | `cfg.segment.merge` | region-similarity merge criterion |
+| β | `cfg.dv.power_suppress` | weak Fourier-power suppression constant |
+
+Bill Geisler's names for these (`phiall`, `rho`, `gcopt`, …) are listed in
+`docs/segmentation-parity.md`.
 
 
 ## License & citation

@@ -16,7 +16,9 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
 %   updates the (dims, ecc) slots of that file (read-modify-write). File structure:
 %     bin_bounds - cell [n_features x n_ecc], bin_bounds{f,e} = column of bin edges
 %     n_bins     - double [n_features x n_ecc], counts
-%     eccs     - 1 x n_ecc eccentricities (columns); btype - 5 (natural).
+%     eccs     - 1 x n_ecc eccentricities (columns)
+%     bound_type - histogram-bound type: 5 = natural images (4 = Brodatz/Fabric in
+%                  Bill's code; was btype)
 %
 %   Run `setup` first; run stages 2 (priors) and 3 (patch pairs for `ecc`) before.
 %   Requires the IntClassNorm toolbox (classify_normals).
@@ -29,12 +31,12 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
 %
 %   Output / side effect
 %     Updates data/models/AHEO_bins.mat / AHE_bins.mat in place for the (dims, ecc)
-%     slots (bin_bounds, n_bins, eccs, btype are the saved field/variable names and
-%     must not be renamed).
+%     slots. bin_bounds, n_bins and eccs are the names
+%     vislab.nat_stat_bayes.load_bin_bounds reads, so they must not be renamed.
 %
 %   See also PRIOR_FILENAME, S23_LEARN_PRIORS_AND_PAIRS, S5_TRAIN_DECISION_VARS
 
-    btype   = 5;                          % bound type: natural images = 5
+    bound_type = 5;                       % histogram-bound type: natural images = 5
     err_crit = 0.002;                     % min fractional error reduction to keep a split
     max_bins = 100;
     patch_size = cfg.patch.size / ecc;
@@ -112,7 +114,8 @@ function s4_optimize_bins(cfg, dims, ecc, autosave)
         n_bins_all(dim, ecc_idx) = nbnds;
     end
 
-    out = struct('bin_bounds', {bin_bounds}, 'n_bins', n_bins_all, 'eccs', eccs, 'btype', btype);
+    out = struct('bin_bounds', {bin_bounds}, 'n_bins', n_bins_all, 'eccs', eccs, ...
+        'bound_type', bound_type);
     if numel(dims) > 1
         dim_str = sprintf('[%s]', num2str(dims(:)'));
     else
@@ -155,21 +158,21 @@ end
 function [prior_x, prior_p] = prior_for_dim(priors, dim)
 % Map a feature dimension to its prior CDF (edges, cumulative prob) in the file.
     switch dim
-        case 1,  prior_x = priors.ea;   prior_p = priors.Na;
-        case 2,  prior_x = priors.eb;   prior_p = priors.Nb;
-        case 3,  prior_x = priors.er;   prior_p = priors.Nr;
-        case 5,  prior_x = priors.em;   prior_p = priors.Nm;
-        case 6,  prior_x = priors.eo;   prior_p = priors.No;
-        case 7,  prior_x = priors.emo;  prior_p = priors.Nmo;
-        case 9,  prior_x = priors.em2;  prior_p = priors.Nm2;
-        case 10, prior_x = priors.eo2;  prior_p = priors.No2;
-        case 11, prior_x = priors.emo2; prior_p = priors.Nmo2;
-        case 12, prior_x = priors.ecs1; prior_p = priors.Ncs1;
-        case 13, prior_x = priors.ecs2; prior_p = priors.Ncs2;
-        case 14, prior_x = priors.ecs4; prior_p = priors.Ncs4;
+        case 1,  prior_x = priors.edges_a_pixel;         prior_p = priors.cdf_a_pixel;
+        case 2,  prior_x = priors.edges_b_pixel;         prior_p = priors.cdf_b_pixel;
+        case 3,  prior_x = priors.edges_r_pixel;         prior_p = priors.cdf_r_pixel;
+        case 5,  prior_x = priors.edges_edge_mag;        prior_p = priors.cdf_edge_mag;
+        case 6,  prior_x = priors.edges_edge_ori;        prior_p = priors.cdf_edge_ori;
+        case 7,  prior_x = priors.edges_edge_mag_ori;    prior_p = priors.cdf_edge_mag_ori;
+        case 9,  prior_x = priors.edges_bar_mag;         prior_p = priors.cdf_bar_mag;
+        case 10, prior_x = priors.edges_bar_ori;         prior_p = priors.cdf_bar_ori;
+        case 11, prior_x = priors.edges_bar_mag_ori;     prior_p = priors.cdf_bar_mag_ori;
+        case 12, prior_x = priors.edges_cs_ratio_small;  prior_p = priors.cdf_cs_ratio_small;
+        case 13, prior_x = priors.edges_cs_linear_small; prior_p = priors.cdf_cs_linear_small;
+        case 14, prior_x = priors.edges_cs_linear_large; prior_p = priors.cdf_cs_linear_large;
         case {15, 16, 17}                                          % pca_gradient only
-            prior_x = priors.(sprintf('epc%d', dim - 14));
-            prior_p = priors.(sprintf('Npc%d', dim - 14));
+            prior_x = priors.(sprintf('edges_pc%d', dim - 14));
+            prior_p = priors.(sprintf('cdf_pc%d', dim - 14));
         otherwise
             error('s4:badDim', 'No CDF for feature dimension %d.', dim);
     end

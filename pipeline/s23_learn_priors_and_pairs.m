@@ -74,7 +74,7 @@ function s23_learn_priors_and_pairs(cfg, ecc, autosave)
         do_save = autosave;
     end
     if do_save
-        save(prior_path, '-struct', 'P');            % fields ea,Na,...,coeff (see finalize_priors)
+        save(prior_path, '-struct', 'P');            % edges_*/cdf_* + coeff (see finalize_priors)
         fprintf('s23: saved priors to %s\n', prior_path);
         % The pairs do not depend on the features. With pca_gradient on, keep the
         % existing pairs for this colour/optics mode, so both models train on the

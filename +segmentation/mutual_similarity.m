@@ -1,7 +1,7 @@
-function rho = mutual_similarity(content_sim, bill_compat)
+function mutual_sim = mutual_similarity(content_sim, bill_compat)
 % MUTUAL_SIMILARITY  Cosine similarity between patches' content-similarity vectors.
-%   rho = segmentation.mutual_similarity(content_sim)
-%   rho = segmentation.mutual_similarity(content_sim, bill_compat)
+%   mutual_sim = segmentation.mutual_similarity(content_sim)
+%   mutual_sim = segmentation.mutual_similarity(content_sim, bill_compat)
 %
 %   The paper's mutual similarity (u_ij): for each patch pair (i,j), the cosine
 %   similarity between patch i's vector of content similarities to all other
@@ -21,13 +21,14 @@ function rho = mutual_similarity(content_sim, bill_compat)
 %     bill_compat - logical, default false (see above).
 %
 %   Output
-%     rho - [N x N] mutual-similarity matrix.
+%     mutual_sim - [N x N] mutual-similarity matrix, in [-1, 1] (paper u_ij;
+%                  Bill's rho).
 %
 %   See also SEGMENTATION.CONTENT_SIMILARITY_MATRIX, SEGMENTATION.GROUP_PATCHES
 
     if nargin < 2 || isempty(bill_compat), bill_compat = false; end
     n = size(content_sim, 1);
-    rho = zeros(n, n);
+    mutual_sim = zeros(n, n);
     stale = [0 0];                         % bill_compat: extra [vi vj] term
     for i = 1:n
         for j = 1:n
@@ -44,7 +45,7 @@ function rho = mutual_similarity(content_sim, bill_compat)
                     vj(end+1) = stale(2);  %#ok<AGROW>
                 end
             end
-            rho(i, j) = sum(vi .* vj) / sqrt(sum(vi.^2) * sum(vj.^2));
+            mutual_sim(i, j) = sum(vi .* vj) / sqrt(sum(vi.^2) * sum(vj.^2));
         end
     end
 end

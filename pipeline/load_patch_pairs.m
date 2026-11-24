@@ -12,8 +12,14 @@ function [pairs, matches] = load_patch_pairs(cfg, ecc)
 %     cfg - config struct (uses cfg.paths.stimuli, cfg.features.color, cfg.optics.apply).
 %     ecc - eccentricity downsample factor (1, 2, 4, 8).
 %   Outputs
-%     pairs   - struct with .ptchn, .ptchf (and .pcnt, .color, .optics as saved);
-%               [] if the file is missing.
+%     pairs   - struct as saved, [] if the file is missing:
+%                 .ptchn  near pairs, [patch_size x 2*patch_size x channels x pcnt]:
+%                         the pair's two patches side by side, normalized and
+%                         LMS->ABR rotated (1 channel achromatic, 3 with colour)
+%                 .ptchf  far pairs, same layout
+%                 .pcnt   number of pairs of each kind
+%                 .color, .optics  the settings they were built with
+%               (Terse names kept on purpose: the ~1 GB file is not rewritten.)
 %     matches - true if the pairs were built with cfg's colour and optics settings.
 %
 %   See also S23_LEARN_PRIORS_AND_PAIRS, S4_OPTIMIZE_BINS, S5_TRAIN_DECISION_VARS

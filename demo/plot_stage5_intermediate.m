@@ -12,10 +12,10 @@ function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
 %   sections, tying each feature to its share of d'.
 %
 %   The columns follow the artifact, not cfg, so the figure always matches what
-%   it is plotting: colour (dbnd.ha/hb present) splits the spot DV into
-%   achromatic, chromatic and full spot columns; the gradient-PCA model
-%   (dbnd.pg present) adds a multi-scale gradient DV column, which merges the PC
-%   large / small gradient LLRs before the gradient DV.
+%   it is plotting: colour (decision_bounds.spot_achr/.spot_chrom present) splits
+%   the spot DV into achromatic, chromatic and full spot columns; the gradient-PCA
+%   model (decision_bounds.ms_grad present) adds a multi-scale gradient DV column,
+%   which merges the PC large / small gradient LLRs before the gradient DV.
 %
 % Inputs
 %   cfg           - config struct.
@@ -31,8 +31,8 @@ function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
     if isempty(R_near), return; end
 
     try
-        S = load(fullfile(cfg.paths.models, decision_bounds_filename(cfg, ecc)), 'dbnd');
-        dbnd = S.dbnd;
+        S = load(fullfile(cfg.paths.models, decision_bounds_filename(cfg, ecc)), 'decision_bounds');
+        decision_bounds = S.decision_bounds;
     catch
         return;
     end
@@ -46,42 +46,49 @@ function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
     end
 
     spot_lab = {'Achromatic', 'CS-Small', 'CS-Large'};  spot_pie = {'A', 'CS-small', 'CS-large'};
-    if isfield(dbnd, 'ha')
-        dvha = quad2fun(dbnd.ha, 0);  dvhb = quad2fun(dbnd.hb, 0);
+    if isfield(decision_bounds, 'spot_achr')
+        spot_achr_dv = quad2fun(decision_bounds.spot_achr, 0);
+        spot_chrom_dv = quad2fun(decision_bounds.spot_chrom, 0);
         nha = R_near(:, col.spot_achr);   fha = R_far(:, col.spot_achr);
         nhb = R_near(:, col.spot_chrom);  fhb = R_far(:, col.spot_chrom);
-        add_col('Achromatic Spot DV', dvha, nha, fha, spot_lab, spot_pie);
-        add_col('Chromatic Spot DV', dvhb, nhb, fhb, {'B (blue-yellow)', 'R (red-green)'}, {'B', 'R'});
+        add_col('Achromatic Spot DV', spot_achr_dv, nha, fha, spot_lab, spot_pie);
+        add_col('Chromatic Spot DV', spot_chrom_dv, nhb, fhb, ...
+            {'B (blue-yellow)', 'R (red-green)'}, {'B', 'R'});
         % combiner over [achromatic spot DV, chromatic spot DV]
-        add_col('Full Spot DV', quad2fun(dbnd.h, 0), ...
-            [apply_dv(dvha, nha), apply_dv(dvhb, nhb)], [apply_dv(dvha, fha), apply_dv(dvhb, fhb)], ...
+        add_col('Full Spot DV', quad2fun(decision_bounds.spot, 0), ...
+            [apply_dv(spot_achr_dv, nha), apply_dv(spot_chrom_dv, nhb)], ...
+            [apply_dv(spot_achr_dv, fha), apply_dv(spot_chrom_dv, fhb)], ...
             {'Achromatic Spot DV', 'Chromatic Spot DV'}, {'achromatic', 'chromatic'});
     else
-        add_col('Spot DV', quad2fun(dbnd.h, 0), R_near(:, col.spot), R_far(:, col.spot), ...
+        add_col('Spot DV', quad2fun(decision_bounds.spot, 0), R_near(:, col.spot), ...
+            R_far(:, col.spot), ...
             spot_lab, spot_pie);
     end
 
     % gradient DV: with the gradient-PCA model, its inputs are the multi-scale
-    % gradient DV (the 1 px edge mag and PC gradient mag LLRs merged by dbnd.pg)
+    % gradient DV (the 1 px edge mag and PC gradient mag LLRs merged by decision_bounds.ms_grad)
     % and the bar LLRs
     near_e = R_near(:, col.edge);  far_e = R_far(:, col.edge);
     edge_names = names(cfg.features.edge_dv_dims);
-    if isfield(dbnd, 'pg')
-        dvpg = quad2fun(dbnd.pg, 0);
+    if isfield(decision_bounds, 'ms_grad')
+        ms_grad_dv = quad2fun(decision_bounds.ms_grad, 0);
         pg_names = names(cfg.features.ms_grad_dims);
-        add_col('Multi-scale Gradient DV', dvpg, R_near(:, col.ms_grad), R_far(:, col.ms_grad), ...
+        add_col('Multi-scale Gradient DV', ms_grad_dv, R_near(:, col.ms_grad), ...
+            R_far(:, col.ms_grad), ...
             pg_names, pg_names);
         rest = setdiff(col.edge, col.ms_grad, 'stable');
-        near_e = [apply_dv(dvpg, R_near(:, col.ms_grad)), R_near(:, rest)];
-        far_e  = [apply_dv(dvpg, R_far(:,  col.ms_grad)), R_far(:,  rest)];
+        near_e = [apply_dv(ms_grad_dv, R_near(:, col.ms_grad)), R_near(:, rest)];
+        far_e  = [apply_dv(ms_grad_dv, R_far(:,  col.ms_grad)), R_far(:,  rest)];
         edge_names = [{'multi-scale gradient DV'}, ...
             names(setdiff(cfg.features.edge_dv_dims, cfg.features.ms_grad_dims, 'stable'))];
     end
     % The gradient DV can use more than 3 features; the cloud shows the first 3,
     % with the boundary sliced at the others' means.
-    add_col('Gradient DV', quad2fun(dbnd.e, 0), near_e, far_e, edge_names, edge_names);
+    add_col('Gradient DV', quad2fun(decision_bounds.edge, 0), near_e, far_e, ...
+        edge_names, edge_names);
 
-    add_col('Border DV', quad2fun(dbnd.b, 0), R_near(:, col.border), R_far(:, col.border), ...
+    add_col('Border DV', quad2fun(decision_bounds.border, 0), R_near(:, col.border), ...
+        R_far(:, col.border), ...
         {'Border Edge Mag', 'Border Bar Mag'}, {'border edge', 'border bar'});
 
     % --- draw: one column per DV ---
@@ -100,7 +107,7 @@ function plot_stage5_intermediate(cfg, ecc, R_near, R_far, col)
         nexttile(nc + c);
         plot_dcon_pie(C(c).near, C(c).far, C(c).pie);
         nexttile(2 * nc + c);
-        local_dv_hist(C(c).dv, C(c).near, C(c).far, C(c).title);
+        plot_dv_hist(apply_dv(C(c).dv, C(c).near), apply_dv(C(c).dv, C(c).far), C(c).title);
         if c == 1, dv_legend(); end
     end
 end
@@ -120,21 +127,17 @@ function local_scatter3_bd(dv, near_pts, far_pts, labels)
     scatter3(near_pts(:,1), near_pts(:,2), near_pts(:,3), 2, 'b', 'filled', ...
         'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.6);
 
-    x_min = min([near_pts(:,1); far_pts(:,1)]) - 1;
-    x_max = max([near_pts(:,1); far_pts(:,1)]) + 1;
-    y_min = min([near_pts(:,2); far_pts(:,2)]) - 1;
-    y_max = max([near_pts(:,2); far_pts(:,2)]) + 1;
-    z_min = min([near_pts(:,3); far_pts(:,3)]) - 1;
-    z_max = max([near_pts(:,3); far_pts(:,3)]) + 1;
-
-    [Xg, Yg, Zg] = meshgrid(linspace(x_min, x_max, 40), linspace(y_min, y_max, 40), ...
-        linspace(z_min, z_max, 40));
+    xl = plot_range(near_pts(:,1), far_pts(:,1));    % middle 99% of each axis
+    yl = plot_range(near_pts(:,2), far_pts(:,2));
+    zl = plot_range(near_pts(:,3), far_pts(:,3));
+    [Xg, Yg, Zg] = meshgrid(linspace(xl(1), xl(2), 40), linspace(yl(1), yl(2), 40), ...
+        linspace(zl(1), zl(2), 40));
     V = reshape(apply_dv(dv, [Xg(:), Yg(:), Zg(:), repmat(fixed, numel(Xg), 1)]), size(Xg));
     fv = isosurface(Xg, Yg, Zg, V, 0);
     if ~isempty(fv.vertices)
         local_draw_surface(fv);
     end
-    view(3); grid on;
+    view(3); grid on;  xlim(xl); ylim(yl); zlim(zl);
     set(gca, 'XTickLabel', [], 'YTickLabel', [], 'ZTickLabel', []);   % no ticks, keep grid
     xlabel(labels{1}, 'Color', dcol(1,:));
     ylabel(labels{2}, 'Color', dcol(2,:));
@@ -152,12 +155,11 @@ function local_scatter2_bd(dv, near_pts, far_pts, labels)
     scatter(near_pts(:,1), near_pts(:,2), 2, 'b', 'filled', 'MarkerEdgeColor', 'none', ...
         'MarkerFaceAlpha', 0.6);
 
-    x_min = min([near_pts(:,1); far_pts(:,1)]) - 1; x_max = max([near_pts(:,1); far_pts(:,1)]) + 1;
-    y_min = min([near_pts(:,2); far_pts(:,2)]) - 1; y_max = max([near_pts(:,2); far_pts(:,2)]) + 1;
-    [Xg, Yg] = meshgrid(linspace(x_min, x_max, 200), linspace(y_min, y_max, 200));
+    xl = plot_range(near_pts(:,1), far_pts(:,1));  yl = plot_range(near_pts(:,2), far_pts(:,2));
+    [Xg, Yg] = meshgrid(linspace(xl(1), xl(2), 200), linspace(yl(1), yl(2), 200));
     Zg = reshape(apply_dv(dv, [Xg(:), Yg(:)]), size(Xg));
     contour(Xg, Yg, Zg, [0 0], 'Color', [0.5 0.5 0.5], 'LineWidth', 1);
-    grid on;
+    grid on;  xlim(xl); ylim(yl);
     set(gca, 'XTickLabel', [], 'YTickLabel', []);                     % no ticks, keep grid
     xlabel(labels{1}, 'Color', dcol(1,:));
     ylabel(labels{2}, 'Color', dcol(2,:));
@@ -173,14 +175,3 @@ function local_draw_surface(fv)
     camlight; lighting gouraud;
 end
 
-% ------------------------------------------------------------------------------
-function local_dv_hist(dv, near_pts, far_pts, xlab)
-% Overlaid near/far histograms of the scalar decision variable, current axes.
-    hold on;
-    histogram(apply_dv(dv, far_pts),  'FaceColor', 'r', 'Normalization', 'pdf', ...
-        'EdgeColor', 'none', 'FaceAlpha', 0.6);
-    histogram(apply_dv(dv, near_pts), 'FaceColor', 'b', 'Normalization', 'pdf', ...
-        'EdgeColor', 'none', 'FaceAlpha', 0.6);
-    set(gca, 'YTick', []);
-    xlabel(xlab);
-end

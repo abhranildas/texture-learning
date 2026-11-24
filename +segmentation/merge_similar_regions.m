@@ -1,7 +1,7 @@
-function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, ...
+function [groups, n_groups] = merge_similar_regions(groups, n_groups, group_counts, ...
         groups2d, content_sim, merge_criterion)
 % MERGE_SIMILAR_REGIONS  Merge the single most-similar pair of touching regions.
-%   [groups, ngrps] = segmentation.merge_similar_regions(groups, ngrps, ...
+%   [groups, n_groups] = segmentation.merge_similar_regions(groups, n_groups, ...
 %       group_counts, groups2d, content_sim, merge_criterion)
 %
 %   Region-similarity grouping step: finds spatially touching region pairs,
@@ -10,22 +10,22 @@ function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, ..
 %
 %   Inputs
 %     groups          - group membership (row per group, patch indices).
-%     ngrps           - number of groups.
+%     n_groups        - number of groups.
 %     group_counts    - per-group patch-count + 1 (as produced by group_patches).
 %     groups2d        - 2-D region-label map ([n_grid_rows x n_grid_cols]).
 %     content_sim     - all-pairs content-similarity matrix.
 %     merge_criterion - merge if mean similarity exceeds this (paper: gamma_r).
 %
 %   Outputs
-%     groups, ngrps - updated membership and group count.
+%     groups, n_groups - updated membership and group count.
 %
 %   See also SEGMENTATION.GROUP_PATCHES, SEGMENTATION.ASSIGN_ISOLATED_PATCHES
 
     [n_grid_rows, n_grid_cols] = size(groups2d);        % grid rows x cols
 
     % adjacency: which regions touch which (4-neighbour)
-    touching = zeros(ngrps, ngrps);
-    for k = 1:ngrps
+    touching = zeros(n_groups, n_groups);
+    for k = 1:n_groups
         for i = 1:n_grid_rows
             for j = 1:n_grid_cols
                 if groups2d(i, j) == k
@@ -47,9 +47,9 @@ function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, ..
     end
 
     % mean content similarity between each touching pair
-    mean_sim = zeros(ngrps, ngrps);
-    for k = 1:ngrps
-        for l = k+1:ngrps
+    mean_sim = zeros(n_groups, n_groups);
+    for k = 1:n_groups
+        for l = k+1:n_groups
             if touching(k, l) == 1
                 count = 0;
                 for a = 1:group_counts(k)
@@ -69,8 +69,8 @@ function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, ..
 
     % merge the most-similar pair if above criterion
     max_sim = -inf; km = 0; lm = 0;
-    for k = 1:ngrps
-        for l = k+1:ngrps
+    for k = 1:n_groups
+        for l = k+1:n_groups
             if mean_sim(k, l) > max_sim
                 max_sim = mean_sim(k, l);
                 km = k; lm = l;
@@ -82,10 +82,10 @@ function [groups, ngrps] = merge_similar_regions(groups, ngrps, group_counts, ..
             groups(lm, 1:group_counts(lm));
         groups(lm, 1:group_counts(lm)) = 0;
         groups(km, :) = sort(groups(km, :), 'descend');
-        for k = lm+1:ngrps
+        for k = lm+1:n_groups
             groups(k-1, :) = groups(k, :);
         end
-        groups(ngrps, :) = 0;
-        ngrps = ngrps - 1;
+        groups(n_groups, :) = 0;
+        n_groups = n_groups - 1;
     end
 end

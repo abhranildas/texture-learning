@@ -3,12 +3,15 @@ function S = learn_image_similarity(cfg, pimg, map, method)
 %   S = segmentation.learn_image_similarity(cfg, pimg, map, method)
 %
 %   Computes, once per image, everything the grouping step needs:
-%     1. the all-pairs content similarity phiall and the mutual similarity rho;
-%     2. near/far patch-pair responses, and from them the grouping criterion gcopt
-%        and mutual-similarity weight wmopt that maximize near/far accuracy on this
+%     1. the all-pairs content similarity content_sim (paper phi_ij) and the mutual
+%        similarity mutual_sim (paper u_ij);
+%     2. near/far patch-pair responses, and from them the grouping criterion
+%        group_crit_best (paper gamma_l) and mutual-similarity weight
+%        mutual_weight_best (paper w_m) that maximize near/far accuracy on this
 %        image (the self-supervised step);
-%     3. the neighbour border+content similarity phi, combined into
-%        mu = phi + wmopt*rho on neighbouring pairs.
+%     3. the neighbour border+content similarity neighbor_sim, combined into
+%        combined_sim = neighbor_sim + mutual_weight_best * mutual_sim on
+%        neighbouring pairs (paper s_ij).
 %   Grouping itself is left to the caller (segmentation.group_patches), so a sweep
 %   over grouping parameters reuses one S.
 %
@@ -16,23 +19,27 @@ function S = learn_image_similarity(cfg, pimg, map, method)
 %     cfg     config struct (config.m).
 %     pimg    GTR image in LMS space, as from make_gtr_image.
 %     map     [rows x cols] ground-truth region map. Sets the patch grid; its labels
-%             are used only to score same/different accuracy (S.pc, S.pcmx), never
-%             to choose gcopt or wmopt.
+%             are used only to score same/different accuracy (S.accuracy,
+%             S.accuracy_best), never to choose group_crit_best or mutual_weight_best.
 %     method  self-supervised rule (see self_sup_decision):
 %               'bc'  pre-trained border+content DV as is ('bc_noshift'); only
-%                     gcopt and wmopt are learned. Bill's current rule (ss_segm.m
-%                     with contentflg = 0, borderflg = 1).
+%                     group_crit_best and mutual_weight_best are learned. Bill's
+%                     current rule (ss_segm.m with contentflg = 0, borderflg = 1).
 %               'nc'  older: content-based shift ('c_shft').
 %               'ncb' older: border+content bound refit on this image ('bc').
 %   Output
-%     S  struct, field names matching Bill's ss_segm.m where they exist:
-%          phiall, rho                 all-pairs content and mutual similarity
-%          rcn rbn rmn / rcf rbf rmf   near / far content, border, mutual values
-%          same_near, same_far         ground truth for those pairs
-%          pcnf, pc                    near/far and same/different accuracy, gc x wm
-%          gcopt, wmopt, pcmx          chosen criterion and weight; pc there
-%          phi, dst, mu                neighbour similarity, patch distances, combined
-%          patch_x, patch_y, patch_size  patch grid
+%     S  struct (Bill's ss_segm.m names in docs/segmentation-parity.md):
+%          content_sim, mutual_sim    [n x n] all-pairs content and mutual similarity
+%          content_near, border_near, mutual_near   content DV, border DV and mutual
+%          content_far, border_far, mutual_far      similarity of each near / far pair
+%          same_near, same_far        ground truth for those pairs (1 = same region)
+%          accuracy_nearfar, accuracy near/far and same/different proportion correct,
+%                                     [criterion x weight] grid
+%          group_crit_best, mutual_weight_best  chosen criterion and weight
+%          accuracy_best              same/different accuracy at that choice
+%          neighbor_sim, patch_dist, combined_sim  [n x n] neighbour similarity,
+%                                     patch-centre distances (pixels), combined
+%          patch_x, patch_y, patch_size  patch grid (patch_size in pixels)
 %
 % See also SEGMENTATION.SEGMENT_LMS, S7_SEGMENT_GTR, NEIGHBOR_FAR_RESPONSES,
 %   SELF_SUP_DECISION, NEARFAR_SCORE_GRID
@@ -44,37 +51,45 @@ function S = learn_image_similarity(cfg, pimg, map, method)
     patch_x = reshape(rows', [], 1);
     patch_y = reshape(cols', [], 1);
 
-    % artifacts: bin bounds (always the ecc-1 bins, as in the originals) + trained DVs
-    cstat = zeros(1, 20);  cstat(cfg.features.dv_dims) = 5;   % spot + edge DV dims
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, 1, bins_filename(cfg));
+    % artifacts: bin bounds (always the ecc-1 bins, as in the originals) + trained DVs.
+    % feature_bound_type(f) > 0 selects feature f (5 = natural-image bins).
+    feature_bound_type = zeros(1, 20);  feature_bound_type(cfg.features.dv_dims) = 5;
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(feature_bound_type, 1, ...
+        bins_filename(cfg));
     dv = load_dv_handles(cfg, ecc, true);
 
     % --- 1. content similarity + mutual similarity ---
-    phiall = segmentation.content_similarity_matrix(pimg, patch_size, patch_x, patch_y, ...
-        bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
-    rho = segmentation.mutual_similarity(phiall, cfg.bill_compat);
+    content_sim = segmentation.content_similarity_matrix(pimg, patch_size, patch_x, patch_y, ...
+        bin_bounds, n_bins, dv.spot, dv.edge, dv.content, cfg);
+    mutual_sim = segmentation.mutual_similarity(content_sim, cfg.bill_compat);
 
-    % --- 2. learn gcopt/wmopt from the self-supervised near/far task (grids and
-    %        tie-breaking as Bill's ss_segm.m:231-234, 594-598) ---
-    gc_vec = 0 : 0.8 : 16;         % grouping criterion
-    wm_vec = 0 : 0.8 : 16;         % mutual-similarity weight
-    R = neighbor_far_responses(cfg, pimg, rho, map, bin_bounds, n_bins, dv);
+    % --- 2. learn group_crit_best / mutual_weight_best from the self-supervised
+    %        near/far task (grids and tie-breaking as Bill's ss_segm.m:231-234, 594-598) ---
+    group_crit_vec = 0 : 0.8 : 16;       % grouping criterion (DV units)
+    mutual_weight_vec = 0 : 0.8 : 16;    % mutual-similarity weight (dimensionless)
+    R = neighbor_far_responses(cfg, pimg, mutual_sim, map, bin_bounds, n_bins, dv);
     ss_method = struct('bc', 'bc_noshift', 'nc', 'c_shft', 'ncb', 'bc').(method);
-    [qbs, qbd] = self_sup_decision(ss_method, R, dv);
-    [pc, ~, ~, pcnf] = nearfar_score_grid(qbs, qbd, R, gc_vec, wm_vec);
-    [~, best] = max(pcnf, [], 'all', 'linear');   % first max in column order:
-    [gc_idx, wm_idx] = ind2sub(size(pcnf), best);  % lowest wm, then lowest gc
+    [bc_near, bc_far] = self_sup_decision(ss_method, R, dv);
+    [accuracy, ~, ~, accuracy_nearfar] = nearfar_score_grid(bc_near, bc_far, R, ...
+        group_crit_vec, mutual_weight_vec);
+    [~, best] = max(accuracy_nearfar, [], 'all', 'linear');  % first max in column order:
+    [crit_idx, weight_idx] = ind2sub(size(accuracy_nearfar), best);  % lowest weight, then criterion
 
-    % --- 3. neighbour similarity + combined mu = phi + wmopt*rho ---
-    [phi, dst] = segmentation.neighbor_similarity_matrix(pimg, patch_size, patch_x, patch_y, ...
-        patch_size, bin_bounds, n_bins, dv, cfg);
-    wmopt = wm_vec(wm_idx);
-    mu = (phi + wmopt * rho) .* (phi ~= 0);  % combine only on neighbouring pairs
+    % --- 3. neighbour similarity, combined: neighbor_sim + mutual_weight_best * mutual_sim ---
+    [neighbor_sim, patch_dist] = segmentation.neighbor_similarity_matrix(pimg, patch_size, ...
+        patch_x, patch_y, patch_size, bin_bounds, n_bins, dv, cfg);
+    mutual_weight_best = mutual_weight_vec(weight_idx);
+    combined_sim = (neighbor_sim + mutual_weight_best * mutual_sim) ...
+        .* (neighbor_sim ~= 0);  % neighbours only
 
-    S = struct('phiall', phiall, 'rho', rho, ...
-        'rcn', R.rcn, 'rbn', R.rbn, 'rmn', R.rmn, 'rcf', R.rcf, 'rbf', R.rbf, 'rmf', R.rmf, ...
-        'same_near', R.same_near, 'same_far', R.same_far, 'pcnf', pcnf, 'pc', pc, ...
-        'gcopt', gc_vec(gc_idx), 'wmopt', wmopt, 'pcmx', pc(gc_idx, wm_idx), ...
-        'phi', phi, 'dst', dst, 'mu', mu, ...
+    S = struct('content_sim', content_sim, 'mutual_sim', mutual_sim, ...
+        'content_near', R.content_near, 'border_near', R.border_near, ...
+        'mutual_near', R.mutual_near, 'content_far', R.content_far, ...
+        'border_far', R.border_far, 'mutual_far', R.mutual_far, ...
+        'same_near', R.same_near, 'same_far', R.same_far, ...
+        'accuracy_nearfar', accuracy_nearfar, 'accuracy', accuracy, ...
+        'group_crit_best', group_crit_vec(crit_idx), 'mutual_weight_best', mutual_weight_best, ...
+        'accuracy_best', accuracy(crit_idx, weight_idx), ...
+        'neighbor_sim', neighbor_sim, 'patch_dist', patch_dist, 'combined_sim', combined_sim, ...
         'patch_x', patch_x, 'patch_y', patch_y, 'patch_size', patch_size);
 end

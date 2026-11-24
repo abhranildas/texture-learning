@@ -5,8 +5,8 @@ function f = decision_bounds_filename(cfg, ecc)
 %   The single source for the decision-bounds filename, used by
 %   s5_train_decision_vars (save), load_dv_handles and demo/plot_stage5_intermediate
 %   (load), and run_demo (artifact-existence check / quick-mode file pick). Colour and
-%   achromatic models cannot share one file -- dbnd.h means something different in
-%   each mode (see docs/color-extension-plan.md) -- so each mode ships its own
+%   achromatic models cannot share one file -- decision_bounds.spot means something
+%   different in each mode (see docs/color-extension-plan.md) -- so each mode ships its own
 %   artifact. Likewise for optics: the "_otf" tag (cfg.optics.file_tag) marks
 %   bounds trained with the optics on, as in prior_filename, and "_pcagrad"
 %   (cfg.features.file_tag) the gradient-PCA model. Under cfg.bill_compat

@@ -1,12 +1,13 @@
 function plot_stage6_pairs(cfg, ecc)
 % PLOT_STAGE6_PAIRS  Qualitative same/different discrimination on random texture
-%   pairs, using the shipped Stage 5 decision variables (dv.h, dv.e, dv.c, dv.b,
-%   dv.bc).
+%   pairs, using the shipped Stage 5 decision variables (dv.spot, dv.edge,
+%   dv.content, dv.border, dv.border_content; see load_dv_handles).
 %   plot_stage6_pairs(cfg, ecc)
 %
 %   For each pair, shows the two patches side by side together with the
 %   ground truth (same/different sheet) and the model's combined border+content
-%   decision (dv.bc thresholded at 0, as in plot_stage5's final panel). Also prints
+%   decision (dv.border_content thresholded at 0, as in plot_stage5's final
+%   panel). Also prints
 %   the same-different accuracy over the shown pairs.
 %
 %   Database: Brodatz (grayscale) when cfg.features.color is false, matching the
@@ -22,7 +23,7 @@ function plot_stage6_pairs(cfg, ecc)
 %
 % See also PLOT_STAGE3, LOCAL_SHOW_PAIR, PAIR_RESPONSES, LOAD_DV_HANDLES, SAMPLE_TEXTURE_PAIRS
     n_show         = 10;
-    btype          = 5;
+    bound_type          = 5;
     power_suppress = cfg.dv.power_suppress;
     edge_thresh    = cfg.dv.edge_thresh;
     patch_size     = cfg.patch.size / ecc;
@@ -30,15 +31,16 @@ function plot_stage6_pairs(cfg, ecc)
     edge_llr_dims  = cfg.features.edge_dv_dims;
 
     if cfg.features.color
-        itype = 2;  db_name = 'Fabric';
+        texture_set = 2;  db_name = 'Fabric';
     else
-        itype = 3;  db_name = 'Brodatz';
+        texture_set = 3;  db_name = 'Brodatz';
     end
 
     feature_list = zeros(1, 20);  feature_list(cfg.features.dv_dims) = 1;
-    cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
-    eccb = 1;
-    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, eccb, ...
+    feature_bound_type = zeros(1, 20);  % per feature: > 0 selects it (load_bin_bounds)
+    feature_bound_type(cfg.features.dv_dims) = bound_type;
+    bin_ecc = 1;
+    [n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(feature_bound_type, bin_ecc, ...
         bins_filename(cfg));
 
     try
@@ -54,7 +56,7 @@ function plot_stage6_pairs(cfg, ecc)
 
     % oversample candidates: pair_responses drops rare outlier pairs, so draw a few
     % extra and keep the first n_show that survive.
-    [ptch, same_gt] = sample_texture_pairs(cfg, ecc, n_show + 5, itype);
+    [ptch, same_gt] = sample_texture_pairs(cfg, ecc, n_show + 5, texture_set);
     [R, keep, col] = pair_responses(ptch, bin_bounds, n_bins, feature_list, ...
         spot_llr_dims, edge_llr_dims, power_suppress, edge_thresh, patch_size, cfg);
     n_show = min(n_show, size(R, 1));
@@ -62,10 +64,11 @@ function plot_stage6_pairs(cfg, ecc)
     ptch = ptch(:, :, :, keep(1:n_show));
     same_gt = same_gt(keep(1:n_show));
 
-    content = [R(:, col.power), apply_dv(dv.h, R(:, col.spot)), apply_dv(dv.e, R(:, col.edge))];
-    content_dv = apply_dv(dv.c, content);
-    border_dv  = apply_dv(dv.b, R(:, col.border));
-    model_dv   = apply_dv(dv.bc, [content_dv, border_dv]);
+    content = [R(:, col.power), apply_dv(dv.spot, R(:, col.spot)), ...
+        apply_dv(dv.edge, R(:, col.edge))];
+    content_dv = apply_dv(dv.content, content);
+    border_dv  = apply_dv(dv.border, R(:, col.border));
+    model_dv   = apply_dv(dv.border_content, [content_dv, border_dv]);
     model_same = model_dv >= 0;
 
     acc = 100 * mean(same_gt == model_same);

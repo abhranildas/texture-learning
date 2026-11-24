@@ -1,8 +1,8 @@
-function [pcg, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
+function [gradient_pca, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
 % S1B_LEARN_GRADIENT_PCA  Learn the multi-scale gradient PCs from natural images.
-%   pcg = s1b_learn_gradient_pca(cfg)
-%   pcg = s1b_learn_gradient_pca(cfg, autosave)
-%   [pcg, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
+%   gradient_pca = s1b_learn_gradient_pca(cfg)
+%   gradient_pca = s1b_learn_gradient_pca(cfg, autosave)
+%   [gradient_pca, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
 %
 %   Pipeline stage 1b. Samples isolated patches from the natural images exactly as
 %   the stage 2 priors do (source_to_lms, then sample_isolated_patches, rotated to
@@ -13,7 +13,8 @@ function [pcg, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
 %   No H/V pairing is imposed: if the PCs come out in H/V pairs, the data did it.
 %   With cfg.features.pca_gradient on, the model uses all three PC pairs
 %   (vislab.lib.pc_grad_response): the magnitudes of PC1-2, PC3-4 and PC5-6 are the
-%   PC large, mid and small gradient mag features. Saves struct pcg to cfg.paths.gradient_pca.
+%   PC large, mid and small gradient mag features. Saves struct gradient_pca (was
+%   pcg) to cfg.paths.gradient_pca.
 %
 %   Inputs
 %     cfg        config struct (uses cfg.pcgrad, cfg.color_rotation, cfg.natural).
@@ -21,8 +22,8 @@ function [pcg, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
 %     one_image  true to sample only the first natural image (demo quick mode; the
 %                result is then for display only and never saved). Default false.
 %   Outputs
-%     pcg  struct: .coeff [2n x 2n] PCs as columns (each sign fixed so its largest
-%          entry is positive), .mu [1 x 2n] response means, .explained (% variance),
+%     gradient_pca  struct: .coeff [2n x 2n] PCs as columns (each sign fixed so
+%          its largest entry is positive), .mu [1 x 2n] response means, .explained (% variance),
 %          .sd_list, .nsd, .n_images. Rows/channels are [H at sd_list, V at sd_list].
 %     X    the sampled responses PCA was run on (rows = pixels), for the stage 1b
 %          figure.
@@ -64,7 +65,7 @@ function [pcg, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
     [~, imax] = max(abs(coeff), [], 1);              % fix each PC's arbitrary sign
     sgn = sign(coeff(sub2ind(size(coeff), imax, 1:size(coeff, 2))));
     coeff = coeff .* sgn;
-    pcg = struct('coeff', coeff, 'mu', mu, 'explained', explained, ...
+    gradient_pca = struct('coeff', coeff, 'mu', mu, 'explained', explained, ...
         'sd_list', sd_list, 'nsd', nsd, 'n_images', numel(files));
 
     % report each used PC's mean scale, to check which pair is the larger-scale one
@@ -81,7 +82,7 @@ function [pcg, X] = s1b_learn_gradient_pca(cfg, autosave, one_image)
         do_save = autosave;
     end
     if do_save
-        save(cfg.paths.gradient_pca, 'pcg');
+        save(cfg.paths.gradient_pca, 'gradient_pca');
         fprintf('s1b: saved %s\n', cfg.paths.gradient_pca);
     else
         fprintf('s1b: skipped saving the gradient PCA.\n');

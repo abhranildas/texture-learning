@@ -73,6 +73,7 @@
 - [ ] 🟠 **0.3.9.** `+segmentation/group_patches.m:112` discards `assign_isolated_patches`'s third output (`ngrps`) and recomputes group growth separately in the caller — two code paths compute the same count for the same event. De-duplicate, or confirm they can't diverge and say why. Not a bug as it stands; a divergence hazard. *Real correctness-adjacent benefit (closes a divergence hazard), contained to `+segmentation/`, but touches core segmentation logic and needs a golden-harness check — moderate cost.*
 - [x] 🔴 **0.3.10.** Act on the 0.3.5 triage — one item, since the table has one row. Convert `demo/plot_stage2.m:46` (verdict row `stage2-pdf-ylim`, *alternative*) from commented-out code into plain prose in the same spot, keeping the reason and dropping the fake `ylim` call. Nothing to delete: no block was judged *superseded* or *scaffolding*. *One line, in one file, verdict already licenses it — no design decision left, no risk. The other remaining 🔴.*
 - [ ] 🟡 **0.3.11.** `setup.m`'s `ensure_addon_on_path` guards an optional 5th argument that both call sites always pass — dead defensiveness, not a bug. Remove the guard or keep it deliberately. *Trivial effort and near-zero risk, but the benefit is genuinely marginal — a guard nobody exercises isn't causing harm either way.*
+- [x] 🟠 **0.3.12.** Readable names for the terse cross-file vocabulary, including saved (`.mat`) names: the similarity/grouping names (`phiall`, `rho`, `phi`, `mu`, `gcopt`, `wmopt`, …), the trained-bound struct `dbnd`, its fields and the `dv.*` handles built from it, names copied from Bill's code (`pcmx`, `pcnf`, `nrg`, `emap`, `ngrps`, `rcn`…`rmf`, `qbs`/`qbd`, `dst`, …), `btype`/`itype`/`eccb`/`cstat`, the gradient-PCA variable `pcg` and the priors-file variables `N*`/`e*`. Each new name has a defining comment where it is introduced; `tools/migrate_saved_names.m` renamed the names inside `data/models/*.mat`; the README glossary shrank to the paper-symbol map; `docs/segmentation-parity.md` §4 maps our names to Bill's. Map and verification in section 3.3. Partly does 0.3.8 (frozen save names) for `data/models`. *Real readability benefit across ~50 files, but a wide call-site surface, many naming decisions, and a one-off rewrite of shipped artifacts — that cost keeps it 🟠.*
 
 </div>
 
@@ -93,6 +94,7 @@
 - [ ] 🔴 **B1.2.** `pipeline/s4_optimize_bins.m` (`eval_r`, ~line 245) rejects outliers with `rv < -25` only — no upper-bound check — while `pair_responses.m`'s outlier rejection for the same kind of LLR quantity is two-sided. Comment marks it "as in the original," so likely long-standing, but the asymmetry is worth confirming with Geisler. 🔴 *if* the asymmetry is unintended: it would silently shift trained bin boundaries. Unconfirmed.
 - [ ] 🟠 **B2.1.** `run_demo.m`'s "missing artifacts" error text tells the user to set a `run_training_stages` variable that doesn't exist anywhere in the repo — the actual switch is `demo_type = 'full'`. Reachable and user-facing, but it only misdirects a message; no numbers change.
 - [ ] 🟠 **B2.2.** `golden_harness('replay', 'tools/golden_ref.mat')` **no longer matches**, and has not for some time. Run headlessly during tranche 0.1.7 (R2024b), four of the fifteen fields differ from the committed reference: `prep_grid_checksum`, `pair_responses_checksum`, `content_similarity_checksum`, `sample_texture_pairs_checksum`. The other eleven match, including all three `twin-net/` fields. **Not caused by tranche 0.1.7**: that tranche modified only `twin-net/*` and `tools/golden_harness.m`, while all four failing entry points live in `+segmentation/`, `pipeline/pair_responses.m`, and `demo/sample_texture_pairs.m`, every one of which is clean at HEAD and was not opened. Filed 🟠 because the symptom is loud — replay throws — rather than silent. **But the cause is unknown and could be worse than the symptom:** if one of those three files' outputs genuinely changed (via the uncommitted colour-extension work-in-progress, or commit `f085bb5` "fixes"), that is a silent numeric change and this should be re-filed as a B1. Either the reference is stale and needs a deliberate re-capture, or an output moved and needs explaining; nothing can distinguish those two without the user's input, and a re-capture must not be taken until it is known which. Until this is settled, **Stage 2's "golden output matched" guarantee is not currently reproducible.**
+- [x] 🟠 **B2.3.** `pipeline/s6_selfsup_discrimination.m`'s closing `fprintf` labels its number "mean near-far PC max", but the value is `max(out.accuracy)` — the trial-averaged **same/different** accuracy (`pc` in `nearfar_score_grid`), not the near/far one (`accuracy_nearfar`, was `pcnf`). Display only; no stored number changes. Found while renaming `pcav` in item 0.3.12.
 - [ ] 🟡 **B3.1.** `+segmentation/neighbor_similarity_matrix.m` header asserts `cfg.gtr.power_suppress` and `cfg.dv.power_suppress` are "both 16 since Geisler unified b0" — nothing in code enforces this; editing one without the other would silently desync the border/content combination from `content_similarity_matrix.m`. Same coupling recurs in `config.m`. Latent: correct today, a trap for the next edit. An assert in `config.m` would close it.
 - [ ] 🟡 **B3.2.** `+segmentation/merge_similar_regions.m` merges exactly one region pair per call by design; `group_patches.m` calls it once per pass, so there is no iterative multi-merge unless a caller loops it. Confirm this is the intended algorithm rather than a truncated loop.
 - [ ] 🟡 **B3.3.** `pipeline/self_sup_decision.m`'s `'bc_noshift'` method branch is unreachable: neither `s6_selfsup_discrimination.m` nor `s7_segment_gtr.m` ever passes it. Dead code unless called directly from outside the pipeline.
@@ -263,7 +265,7 @@ The rename map is the pass's most valuable artifact and its main divergence risk
 2. **Cross-file vocabulary — repo-wide, or not at all.** Two sub-vocabularies:
    - The `cfg` struct: 54 distinct `cfg.*` field paths defined in `config.m` and read everywhere. Renaming any of them touches `config.m` plus every reader. **Its own tranche, deferred.**
    - Function arguments named consistently across the repo (`ecc`, `itype`, `psz`, `dv`, `col`). High value because they're everywhere — but a half-done rename is worse than none.
-3. **Serialised variable names — forbidden.** Names inside `.mat` files: `coeff`, `ea`, `Na`, `ptchn`, `ptchf`, `pcnt`, `color`, `bin_bounds`, `n_bins`, `eccs`, `dbnd`, `near`, `far`, `same`, `diff`, `same_brod`, `diff_brod`, `net`, `fcParams`, `lms`. Five shipped artifacts in `data/models/` depend on them. A local variable that *holds* one of these can be renamed; the string in the `save`/`load` call cannot. Note `diff` is also a builtin-shadow candidate in `twin-net/texture_same_diff_patches_net.m:68` — there it's a frozen save name; elsewhere it's free. Check which you're looking at.
+3. **Serialised variable names — forbidden.** Names inside `.mat` files: `coeff`, `cdf_*`/`edges_*` (priors; were `N*`/`e*`, e.g. `Na`, `ea`, until item 0.3.12), `ptchn`, `ptchf`, `pcnt`, `color`, `bin_bounds`, `n_bins`, `eccs`, `bound_type` (was `btype`), `decision_bounds` (was `dbnd`), `gradient_pca` (was `pcg`), `near`, `far`, `same`, `diff`, `same_brod`, `diff_brod`, `net`, `fcParams`, `lms`. Five shipped artifacts in `data/models/` depend on them. A local variable that *holds* one of these can be renamed; the string in the `save`/`load` call cannot. Note `diff` is also a builtin-shadow candidate in `twin-net/texture_same_diff_patches_net.m:68` — there it's a frozen save name; elsewhere it's free. Check which you're looking at.
 
 **Units are the other half of naming** — state them in every header: `cfg.optics.ppd = 60` pixels/deg for all images, `cfg.patch.size`/`cfg.patch.image_size` in pixels, `ecc` an integer divisor (not degrees), `cfg.optics.pupil_diameter` in mm, `cfg.optics.wavelength` in nm, `cfg.dv.edge_thresh` in image units.
 
@@ -742,6 +744,190 @@ Three things this pins down, all relevant to B2.2. The four failing fields are e
 **`checkcode('pipeline/pair_responses.m')` is clean** (empty output) with the block in place.
 
 **No bug and no optimization found while doing this item** — a documented negative. Nothing was added to section 0.4 or 0.5. The `mustBeInteger` pass over `n_bins` is the only new per-call work and it is a scan of a 20-element vector, immaterial next to the per-pair histogram loop.
+
+---
+
+**Item 0.3.12 — readable names for the cross-file and saved vocabulary.** Done 2026-11-24, MATLAB R2024b. Left uncommitted: the user's standing rule is that they review and commit.
+
+**Goal (the user's words):** comments that explain the non-obvious variables, and more obvious names where possible; then remove as much of the README glossary as possible. Binding decisions from the user: paper-symbol names become words; names copied from Bill's code are renamed too, with an our-name ↔ Bill's-name table; names stored in saved files are renamed too, via a one-off migration script.
+
+**Naming rule used (binding for later work).** The shortest snake_case word(s) that are unambiguous where the name lives, reusing words the repo already had: `est_map` and `n_correct` (already in `count_correct_regions`, `adjusted_rand_index`, `s7`), `content_sim` (already the argument name in `mutual_similarity` and `group_patches`), and the `col.spot`/`col.edge`/`col.border` column names, so a trained handle reads `apply_dv(dv.spot, R(:, col.spot))`. A struct field and the local that fills it get the same name, and a saved bound and the handle built from it share a name (`decision_bounds.spot` → `dv.spot`). Bill's names stay wherever the text is *about* Bill's code: the strings that patch his code in `tools/compare_otf_*.m`, all of `tools/capture_bill_segmentation.m` (untouched), the golden file `tools/golden_bill_segm.mat`, and prose such as "Bill's rho".
+
+**Rename map** (bare identifiers unless a field is named; every renamed field keeps its position, so struct field order is unchanged):
+
+| old | new | where |
+|---|---|---|
+| `phiall` | `content_sim` | var + `S` field (`learn_image_similarity`, s6); `phi` output of `content_similarity_matrix` too |
+| `rho` | `mutual_sim` | var + `S` field |
+| `phi` | `neighbor_sim` | var + `S` field (neighbour border+content similarity) |
+| `mu` | `combined_sim` | var + `S` field |
+| `dst` | `patch_dist` | var + `S` field |
+| `gc`, `wm` | `group_crit`, `mutual_weight` | args/vars; s6 `out` fields |
+| `gc_vec`, `wm_vec`, `gc_idx`, `wm_idx`, `ngc`, `nms` | `group_crit_vec`, `mutual_weight_vec`, `crit_idx`, `weight_idx`, `n_crit`, `n_weight` | vars |
+| `gcopt`, `wmopt` | `group_crit_best`, `mutual_weight_best` | var + `S` field |
+| `pc`, `pcs`, `pcd`, `pcnf` | `accuracy`, `accuracy_same`, `accuracy_diff`, `accuracy_nearfar` | vars + `S` fields |
+| `pcav`, `pcsav`, `pcdav`, `pcnfav` | `accuracy`, `accuracy_same`, `accuracy_diff`, `accuracy_nearfar` | s6 `out` fields |
+| `pcmx` | `accuracy_best` | `S`/`seg` field |
+| `rcn rbn rmn` / `rcf rbf rmf` | `content_near border_near mutual_near` / `content_far border_far mutual_far` | vars + `R`/`S` fields |
+| `ncnt`, `scnt`, `dcnt` | `n_pairs`, `n_near`, `n_far` | `R` field / vars |
+| `npx`, `npy` (neighbor_far_responses) | `n_rows`, `n_cols` | vars |
+| `rc`, `rb` (DVs of one pair) | `content_dv`, `border_dv` | vars |
+| `qbs`, `qbd` | `bc_near`, `bc_far` | vars |
+| `copt`, `rbcn`, `rbcf`, `dvbc` | `shift`, `unshifted_near`, `unshifted_far`, `bc_dv` | vars (self_sup_decision) |
+| `ncs ncd sc dc ncn ncf` | `same_ok diff_ok n_same n_diff near_ok far_ok` | vars (nearfar_score_grid) |
+| `emap`, `ngrps`, `nrg` | `est_map`, `n_groups`, `n_correct` | vars + `seg` fields |
+| `dv.h`, `.e`, `.c`, `.b`, `.bc` | `dv.spot`, `.edge`, `.content`, `.border`, `.border_content` | handle-struct fields |
+| `dbnd` | `decision_bounds` | **saved** variable |
+| `dbnd.h ha hb pg ms_n e c b bc spot_achr_n` | `.spot spot_achr spot_chrom ms_grad n_ms_grad edge content border border_content n_spot_achr` | **saved** fields |
+| `dvh dve dvc dvb dvha dvhb dvh2`/`dvh_2d` `dvpg dve_last` | `spot_dv edge_dv content_dv border_dv spot_achr_dv spot_chrom_dv spot_combine_dv ms_grad_dv final_dv` | vars |
+| `btype`, `cstat`, `eccb` | `bound_type`, `feature_bound_type`, `bin_ecc` | vars; `bound_type` also **saved** (bins files) |
+| `itype`, `itypes` | `texture_set`, `texture_sets` | args/vars; s6/s7/compare_otf `out`/`result` fields |
+| `pcg` | `gradient_pca` | var + **saved** variable |
+| priors `N<tag>`, `e<tag>` | `cdf_<feature>`, `edges_<feature>` | **saved** variables; features `a_pixel b_pixel r_pixel edge_mag edge_ori edge_mag_ori bar_mag bar_ori bar_mag_ori cs_ratio_small cs_linear_small cs_linear_large pc1 pc2 pc3` |
+| `img_feats`/`s` fields `g1m g1o g1mo g2m g2o g2mo cs1 cs2 cs4` | the same feature names | fields (sample_prior_features → finalize_priors) |
+| s6 `mp` and its fields `pd itype dgc gcmx dms msmx`; `ntrl`, `trl`, `px`, `py` | `method_params` with `pupil_diameter texture_set group_crit_step group_crit_max mutual_weight_step mutual_weight_max`; `n_trials`, `trial`, `patch_x`, `patch_y` | vars/fields |
+| `ntexr` (s7), `emaps` (compare_otf_models), `stage_order` (check_bill_segmentation) | `n_regions`, `est_maps`, `stage_names` | vars |
+
+No `cfg` field was renamed (config() returns identical structs, below); item 0.3.7 still owns that.
+
+**Deliberately left alone.** `ecc`, `lms`, `ppd`: standard names; `config.m` now defines `ecc`'s rough degrees, LMS/ABR and `coeff`, and already had `ppd` in pixels/deg. The patch-pair file's `ptchn`/`ptchf`/`pcnt` (data/stimuli, ~1 GB, and `rename_check` reads `pp.ptchn`): documented in `load_patch_pairs`'s header instead. `twin-net/` saved names (`same_brod`, `fcParams`, …): out of scope. External names: `vislab` function names and its `load_bin_bounds` file contract (`bin_bounds`, `n_bins`, `eccs` stay; vislab's own doc still says `btype` for the type field), and `classify_normals`/`pca` output fields (`samp_opt_bd`, `coeff`, `mu`, `explained`). The `self_sup_decision` method strings (`'bc'`, `'c_shft'`, …) and `cfg.segment.method` values (saved in `segmentation_params*.mat`): values, not names. File-local terse names outside this vocabulary (the `g1m` locals in sample_prior_features, `ea`/`Na` locals in the experiment script): commented where they meet a renamed field. `tools/golden_ref.mat` and `tools/golden_bill_segm.mat` were not regenerated. `golden_harness` runs with the new names, but its reference field `dv_fields` holds the old `dv` field names, so a replay will now report that field as well as B2.2's four.
+
+**README.** The Glossary now holds only the paper-symbol ↔ code map: the decision-variable table (adding the trained-handle names, `cfg.features.edge_dv_dims` and PC features 15–17) and a similarity/grouping table (φ, μ/u, w_m, s, γ_l, γ_c, γ_r, β). Everything else moved into code comments or into `docs/segmentation-parity.md` §4. The code comments are in `config.m` (LMS/ABR/`coeff`, ecc ↔ degrees, normalization targets; the feature-dimension list was already next to `cfg.features`). The parity doc takes Bill's names, the `NO`/`BF` file tags and the N/NC/NCB… labels. `p_s`, `p_d` were dropped because no code uses them. Paper symbols were checked against the text of `docs/paper.pdf`: $u_{ij}$ (Eq. 1) and $s_{ij}$ (Eq. 2, the combined similarity) are verified. The weight's and φ's glyphs did not survive text extraction, so `w_m` and φ are carried over from the old README, not re-verified. A stale fact fixed while there: the s6/s7 signatures in the pipeline table.
+
+**Other docs.** `docs/segmentation-parity.md` gains §4 (our name ↔ Bill's name; every Bill name was grep-checked in `Bill's code/`). `docs/to-do.md` and `docs/color-extension-plan.md` got a note that their code snippets quote pre-rename names; rewriting pending-task snippets by hand risked changing what they mean. The two prose references in to-do.md were updated, as were `docs/top-level-scripts-plan.md` and `twin-net/net_plan.md`. Historical work-log text in this file is unchanged.
+
+**Baselines.** `git show HEAD:<file>` for every clean file. For the dirty or untracked files (`demo/plot_dv_hist.m`, `demo/plot_range.m`, `demo/plot_stage5.m`, `demo/plot_stage5_intermediate.m`, `tools/make_readme_figure.m`, `data/models/segmentation_params_pcagrad.mat`), the on-disk content before this item. All were copied to the session scratchpad first, and `data/models` was backed up in full before migrating.
+
+**Verification, verbatim.**
+
+1. Behaviour: `rename_check('replay', ref.mat)` segments 2 GTR images in default and PCA mode, evaluates the DV handles and computes 300 Stage-5 pair responses. It compares values in field order and ignores names. After the code edits, before migrating any file:
+```
+Starting parallel pool (parpool) using the 'Processes' profile ...
+Connected to parallel pool with 8 workers.
+RENAME_CHECK PASS (8 items identical)
+Parallel pool using the 'Processes' profile is shutting down.
+```
+After `migrate_saved_names` and the loader/saver updates:
+```
+Starting parallel pool (parpool) using the 'Processes' profile ...
+Connected to parallel pool with 8 workers.
+RENAME_CHECK PASS (8 items identical)
+Parallel pool using the 'Processes' profile is shutting down.
+```
+
+2. Migration, run twice (idempotent):
+```
+--- run 1
+  migrated:         decision_bounds_ecc_1.mat
+  migrated:         decision_bounds_ecc_1_color_otf_bill.mat
+  migrated:         decision_bounds_ecc_1_otf.mat
+  migrated:         decision_bounds_ecc_1_otf_bill.mat
+  migrated:         decision_bounds_ecc_1_pcagrad.mat
+  migrated:         AHEO_bins.mat
+  migrated:         AHEO_bins_bill.mat
+  migrated:         AHE_bins.mat
+  migrated:         AHE_bins_pcagrad.mat
+  migrated:         gradient_pca.mat
+  migrated:         priors_abr_mo13_mo23_cs33_ecc_1.mat
+  migrated:         priors_abr_mo13_mo23_cs33_otf_ecc_1.mat
+  migrated:         priors_abr_mo13_mo23_cs33_pcagrad_ecc_1.mat
+--- run 2
+  already migrated: decision_bounds_ecc_1.mat
+  already migrated: decision_bounds_ecc_1_color_otf_bill.mat
+  already migrated: decision_bounds_ecc_1_otf.mat
+  already migrated: decision_bounds_ecc_1_otf_bill.mat
+  already migrated: decision_bounds_ecc_1_pcagrad.mat
+  already migrated: AHEO_bins.mat
+  already migrated: AHEO_bins_bill.mat
+  already migrated: AHE_bins.mat
+  already migrated: AHE_bins_pcagrad.mat
+  already migrated: gradient_pca.mat
+  already migrated: priors_abr_mo13_mo23_cs33_ecc_1.mat
+  already migrated: priors_abr_mo13_mo23_cs33_otf_ecc_1.mat
+  already migrated: priors_abr_mo13_mo23_cs33_pcagrad_ecc_1.mat
+```
+Values check of each migrated file against the backup, name for name (and `decision_bounds` field order = `dbnd`'s): `MIGRATION VALUES: 13 of 13 files equal to backup`.
+
+3. AST checks over every edited `.m` file: 53 files, including the two untracked demo helpers, which this item left unchanged. `strict` is `check_stage1` with the file's bare-identifier map, after `assert_rename_bijection`. It cannot see field or string renames, so it fails, as expected, on every file that renames a struct field or a field-name string. `extended` reverses every recorded rename (identifier, `base.field`, quoted string) in reverse order of application and compares the canons; entries that matched nothing in the old file are skipped. The two `extended=0` files were checked by reading the diff. In `config.m` the only code change is the load name `'pcg'` → `'gradient_pca'`; the reversal also hits the unrelated filename string `'gradient_pca'`. In `tools/check_bill_segmentation.m` the change is real and intended: the stage list became a two-column our-name/Bill-name map, and `first_difference` looks up Bill's name in the golden file. That tool is a legacy fixture and was not run.
+```
++segmentation/adjusted_rand_index.m           strict=1 extended=1
++segmentation/assign_isolated_patches.m       strict=1 extended=1
++segmentation/content_features.m              strict=1 extended=1
++segmentation/content_similarity_matrix.m     strict=1 extended=1
++segmentation/group_patches.m                 strict=1 extended=1
++segmentation/learn_image_similarity.m        strict=0 extended=1
++segmentation/merge_similar_regions.m         strict=1 extended=1
++segmentation/mutual_similarity.m             strict=1 extended=1
++segmentation/neighbor_similarity_matrix.m    strict=0 extended=1
++segmentation/segment_lms.m                   strict=0 extended=1
+config.m                                      strict=0 extended=0
+demo/compute_demo_responses.m                 strict=1 extended=1
+demo/pc_filter_images.m                       strict=1 extended=1
+demo/plot_dv_hist.m                           strict=1 extended=1
+demo/plot_model_diagram.m                     strict=1 extended=1
+demo/plot_range.m                             strict=1 extended=1
+demo/plot_stage1b_gradients.m                 strict=1 extended=1
+demo/plot_stage2.m                            strict=0 extended=1
+demo/plot_stage5.m                            strict=0 extended=1
+demo/plot_stage5_intermediate.m               strict=0 extended=1
+demo/plot_stage6.m                            strict=0 extended=1
+demo/plot_stage6_pairs.m                      strict=0 extended=1
+demo/plot_stage7.m                            strict=0 extended=1
+demo/plot_stage7_pair_accuracy.m              strict=0 extended=1
+demo/plot_stage8_natural.m                    strict=0 extended=1
+demo/sample_texture_pairs.m                   strict=1 extended=1
+experiments/adaptive_hist_exp.m               strict=0 extended=1
+pipeline/decision_bounds_filename.m           strict=1 extended=1
+pipeline/edge_dv_handle.m                     strict=0 extended=1
+pipeline/finalize_priors.m                    strict=0 extended=1
+pipeline/load_dv_handles.m                    strict=0 extended=1
+pipeline/load_patch_pairs.m                   strict=1 extended=1
+pipeline/load_texture_images.m                strict=1 extended=1
+pipeline/make_gtr_image.m                     strict=1 extended=1
+pipeline/nearfar_score_grid.m                 strict=0 extended=1
+pipeline/neighbor_far_responses.m             strict=0 extended=1
+pipeline/s1b_learn_gradient_pca.m             strict=1 extended=1
+pipeline/s23_learn_priors_and_pairs.m         strict=1 extended=1
+pipeline/s4_optimize_bins.m                   strict=0 extended=1
+pipeline/s5_train_decision_vars.m             strict=0 extended=1
+pipeline/s6_selfsup_discrimination.m          strict=0 extended=1
+pipeline/s7_segment_gtr.m                     strict=0 extended=1
+pipeline/sample_prior_features.m              strict=0 extended=1
+pipeline/segment_image.m                      strict=0 extended=1
+pipeline/self_sup_decision.m                  strict=0 extended=1
+run_demo.m                                    strict=0 extended=1
+tools/check_bill_segmentation.m               strict=0 extended=0
+tools/compare_otf_bill.m                      strict=0 extended=1
+tools/compare_otf_models.m                    strict=0 extended=1
+tools/golden_harness.m                        strict=0 extended=1
+tools/import_bill_model.m                     strict=0 extended=1
+tools/make_readme_figure.m                    strict=0 extended=1
+tools/segment_bill_image.m                    strict=1 extended=1
+check_stage1 (bare-identifier map): 21 of 53 files true
+extended check (all recorded renames reversed): 51 of 53 files true
+```
+
+4. `checkcode` on every changed tracked `.m` file plus the new `tools/migrate_saved_names.m`, against each baseline (message texts, line numbers ignored): `CHECKCODE: 52 files, 0 new message texts`.
+
+5. `config()` for 13 argument combinations, old code + backed-up data vs new code + migrated data, paths normalized. The structs are identical because no `cfg` field was renamed.
+```
+config(): equal = 1
+config(false): equal = 1
+config(true): equal = 1
+config(false, false): equal = 1
+config(true, false): equal = 1
+config(false, true): equal = 1
+config(true, true): equal = 1
+config(false, true, false): equal = 1
+config(true, false, true): equal = 1
+config(false, false, [], true): equal = 1
+config(false, true, [], true): equal = 1
+config(true, true, [], true): equal = 1
+config(true, false, [], true): equal = 1
+CONFIG COMBOS: 13 of 13 equal
+```
+
+**Found, not fixed.** B2.3 (an s6 display label). No optimization spotted. One line-length exception added: `run_demo.m`'s Stage 8 `fprintf` string (117 characters; splitting a literal is an AST change).
 
 
 </div>

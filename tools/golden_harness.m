@@ -54,14 +54,15 @@ rng(cfg.seed);
 golden.demo_pairs_size = [size(ptchn) size(ptchf)];
 
 psz = cfg.patch.size / ecc;
-btype = 5;
+bound_type = 5;
 b0 = 16;
 thresh = cfg.dv.edge_thresh;
 nh = cfg.features.spot_dims;
 ne = cfg.features.edge_dv_dims;
 feature_list = zeros(1, 20);  feature_list(cfg.features.dv_dims) = 1;
-cstat        = zeros(1, 20);  cstat(cfg.features.dv_dims) = btype;
-[n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(cstat, ecc, bins_filename(cfg));
+feature_bound_type = zeros(1, 20);  feature_bound_type(cfg.features.dv_dims) = bound_type;
+[n_bins, bin_bounds] = vislab.nat_stat_bayes.load_bin_bounds(feature_bound_type, ecc, ...
+    bins_filename(cfg));
 
 rng(cfg.seed);
 [R, keep, col] = pair_responses(ptchn, bin_bounds, n_bins, feature_list, nh, ne, b0, thresh, psz, cfg); %#ok<ASGLU>
@@ -71,9 +72,9 @@ golden.pair_responses_keep_n = numel(keep);
 rng(cfg.seed);
 n_side = size(img, 1) / psz;
 [patch_x, patch_y] = ndgrid(1:n_side, 1:n_side);
-phi = segmentation.content_similarity_matrix(img, psz, patch_x(:), patch_y(:), ...
-    bin_bounds, n_bins, dv.h, dv.e, dv.c, cfg);
-golden.content_similarity_checksum = sum(phi(:));
+content_sim = segmentation.content_similarity_matrix(img, psz, patch_x(:), patch_y(:), ...
+    bin_bounds, n_bins, dv.spot, dv.edge, dv.content, cfg);
+golden.content_similarity_checksum = sum(content_sim(:));
 
 % --- +gtr/ ---
 rng(cfg.seed);

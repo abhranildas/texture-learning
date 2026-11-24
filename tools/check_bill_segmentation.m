@@ -22,14 +22,16 @@ function report = check_bill_segmentation(segment_fn, golden_file, bill_root)
 %                    img     the GTR image as Bill stores it (RGB, gtrimg(:,:,:,k))
 %                    map     its ground-truth region map
 %                    params  struct with Bill's flgs, gl, gcc, gr
-%                  out must have .emap, .ngrps, .nrg, .pcmx. It may also have
-%                  .stages with any of the golden stage fields, under the same names
-%                  (see CAPTURE_BILL_SEGMENTATION); only those present are compared.
+%                  out must have .est_map, .n_groups, .n_correct (segment_lms's
+%                  names). It may also have .stages with any of the golden stage
+%                  fields, under this repo's names (STAGE_NAMES below maps them to
+%                  Bill's, which the golden file keeps); only those present are
+%                  compared.
 %     golden_file  default tools/golden_bill_segm.mat
 %     bill_root    folder holding Bill's code (default: the sibling "Bill's code");
 %                  the images are read from there, never written.
 %   Output
-%     report  struct array, one per image: .segmentation_ok, .ngrps_ok, .nrg_ok,
+%     report  struct array, one per image: .segmentation_ok, .n_groups_ok, .n_correct_ok,
 %             .pass, .first_diff_stage ('' if none), .first_diff_size (max abs diff)
 %
 % See also CAPTURE_BILL_SEGMENTATION
@@ -45,8 +47,14 @@ function report = check_bill_segmentation(segment_fn, golden_file, bill_root)
 
     golden = load(golden_file);
     images = load(fullfile(bill_root, golden.images_file), 'gtrimg');
-    stage_order = {'phiall', 'rho', 'rcn', 'rbn', 'rbcn', 'rmn', 'rcf', 'rbf', 'rbcf', 'rmf', ...
-                   'same_near', 'same_far', 'pcnf', 'gcopt', 'wmopt', 'phi', 'mu'};
+    % stages in pipeline order: {this repo's name, Bill's name in the golden file}.
+    % The repo has no rbcn/rbcf (near/far border+content DV) stage, so they are skipped.
+    stage_names = {'content_sim', 'phiall'; 'mutual_sim', 'rho'; 'content_near', 'rcn';
+                   'border_near', 'rbn'; '', 'rbcn'; 'mutual_near', 'rmn';
+                   'content_far', 'rcf'; 'border_far', 'rbf'; '', 'rbcf'; 'mutual_far', 'rmf';
+                   'same_near', 'same_near'; 'same_far', 'same_far';
+                   'accuracy_nearfar', 'pcnf'; 'group_crit_best', 'gcopt';
+                   'mutual_weight_best', 'wmopt'; 'neighbor_sim', 'phi'; 'combined_sim', 'mu'};
 
     n_img = numel(golden.images);
     for k = 1:n_img
@@ -54,11 +62,11 @@ function report = check_bill_segmentation(segment_fn, golden_file, bill_root)
         rng(ref.rng_state);
         out = segment_fn(images.gtrimg(:,:,:,k), ref.map, golden.params);
 
-        r.segmentation_ok = same_partition(out.emap, ref.emap);
-        r.ngrps_ok = out.ngrps == ref.ngrps;
-        r.nrg_ok   = out.nrg == ref.nrg;
-        r.pass     = r.segmentation_ok && r.ngrps_ok && r.nrg_ok;
-        [r.first_diff_stage, r.first_diff_size] = first_difference(out, ref.stages, stage_order);
+        r.segmentation_ok = same_partition(out.est_map, ref.emap);   % ref keeps Bill's names
+        r.n_groups_ok  = out.n_groups == ref.ngrps;
+        r.n_correct_ok = out.n_correct == ref.nrg;
+        r.pass     = r.segmentation_ok && r.n_groups_ok && r.n_correct_ok;
+        [r.first_diff_stage, r.first_diff_size] = first_difference(out, ref.stages, stage_names);
         report(k) = r; %#ok<AGROW>
 
         fprintf('image %2d/%d: %s', k, n_img, pass_fail(r.pass));
@@ -87,16 +95,16 @@ function ok = same_partition(a, b)
     ok = size(pairs, 1) == numel(unique(a)) && size(pairs, 1) == numel(unique(b));
 end
 
-function [stage, gap] = first_difference(out, ref_stages, stage_order)
+function [stage, gap] = first_difference(out, ref_stages, stage_names)
 % First stage (in pipeline order) where out.stages departs from Bill's beyond
-% round-off. Stages the repo does not report are skipped.
+% round-off, named as in this repo. Stages the repo does not report are skipped.
     stage = '';  gap = 0;
     if ~isfield(out, 'stages'), return; end
-    for i = 1:numel(stage_order)
-        name = stage_order{i};
-        if ~isfield(out.stages, name), continue; end
+    for i = 1:size(stage_names, 1)
+        name = stage_names{i, 1};
+        if isempty(name) || ~isfield(out.stages, name), continue; end
         mine = full(double(out.stages.(name)));
-        bill = full(double(ref_stages.(name)));
+        bill = full(double(ref_stages.(stage_names{i, 2})));
         if ~isequal(size(mine), size(bill))
             stage = name;  gap = inf;  return;
         end

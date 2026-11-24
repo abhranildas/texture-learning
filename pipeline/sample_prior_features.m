@@ -11,13 +11,20 @@ function s = sample_prior_features(img_lms, n_samples, patch_size, cfg, coeff)
 %     coeff      - LMS->ABR rotation (from Stage 1).
 %
 %   Output s (columns of sampled values for this image; field names match
-%   finalize_priors' inputs and must not be renamed):
+%   finalize_priors' inputs and the priors-file names):
 %     .lms  [n x 3]      normalized LMS pixels (for the ABR colour-channel CDFs)
-%     .g1m .g1o .g1mo    1st-derivative steerable magnitude / orientation / (m x o)
-%     .g2m .g2o .g2mo    2nd-derivative steerable magnitude / orientation / (m x o)
-%     .cs1 .cs2 .cs4     center-surround ratio / small-linear / large-linear
-%     .pc1 .pc2 .pc3     PC large / mid / small gradient magnitude (only with
-%                        cfg.features.pca_gradient; vislab.lib.pc_grad_response)
+%     .edge_mag .edge_ori .edge_mag_ori
+%                        1st-derivative (edge) steerable magnitude / orientation /
+%                        (mag x ori); features 5-7. Locals g1m/g1o/g1mo below.
+%     .bar_mag .bar_ori .bar_mag_ori
+%                        2nd-derivative (bar) steerable magnitude / orientation /
+%                        (mag x ori); features 9-11. Locals g2m/g2o/g2mo below.
+%     .cs_ratio_small .cs_linear_small .cs_linear_large
+%                        center-surround ratio / small-linear / large-linear;
+%                        features 12-14 (vislab.lib.center_surround types 1, 2, 4)
+%     .pc1 .pc2 .pc3     PC large / mid / small gradient magnitude, features 15-17
+%                        (only with cfg.features.pca_gradient;
+%                        vislab.lib.pc_grad_response)
 %
 %   See also SAMPLE_ISOLATED_PATCHES, FINALIZE_PRIORS, S23_LEARN_PRIORS_AND_PAIRS
 
@@ -87,9 +94,11 @@ function s = sample_prior_features(img_lms, n_samples, patch_size, cfg, coeff)
     end
 
     s.lms  = lms(1:n_lms, :);
-    s.g1m  = g1m(1:n_g1);    s.g1o = g1o(1:n_g1);    s.g1mo = g1mo(1:n_g1);
-    s.g2m  = g2m(1:n_g2);    s.g2o = g2o(1:n_g2);    s.g2mo = g2mo(1:n_g2);
-    s.cs1  = cs1v(1:n_cs1);  s.cs2 = cs2v(1:n_cs2);  s.cs4  = cs4v(1:n_cs4);
+    s.edge_mag = g1m(1:n_g1);  s.edge_ori = g1o(1:n_g1);  s.edge_mag_ori = g1mo(1:n_g1);
+    s.bar_mag  = g2m(1:n_g2);  s.bar_ori  = g2o(1:n_g2);  s.bar_mag_ori  = g2mo(1:n_g2);
+    s.cs_ratio_small  = cs1v(1:n_cs1);
+    s.cs_linear_small = cs2v(1:n_cs2);
+    s.cs_linear_large = cs4v(1:n_cs4);
     if use_pc
         for j = 1:n_pairs, s.(sprintf('pc%d', j)) = pcv(1:n_pc(j), j); end
     end

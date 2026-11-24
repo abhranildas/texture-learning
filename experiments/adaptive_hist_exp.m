@@ -209,7 +209,7 @@ Bm = load(fullfile(cfg.paths.models, 'AHEO_bins.mat'), 'bin_bounds', 'eccs');
 a_edges_adapt = Bm.bin_bounds{1, find(Bm.eccs == 1, 1)};      % model's shipped adaptive bin edges
 nb = numel(a_edges_adapt) - 1;                                % match the model's adaptive bin count
 ie_edges = equalize_cdf(nb, S.edges, S.jsd_cdf, lo, hi);      % equal JSD-profile mass per bin
-a_priors = load(fullfile(cfg.paths.models, prior_filename(cfg, 1)), 'ea', 'Na');
+a_priors = load(fullfile(cfg.paths.models, prior_filename(cfg, 1)), 'edges_a_pixel', 'cdf_a_pixel');
 pe_edges = prior_equalized_edges(nb, lo, hi, a_priors);       % equal prior mass per bin
 
 % panel h: bin width vs bin location for the three irregular-bin schemes above, drawn in the free
@@ -322,7 +322,8 @@ cfg = config(); ecc = 1; patch_size = cfg.patch.size / ecc;
 rng('shuffle');
 sub = @(v) v(round(linspace(1, numel(v), min(200, numel(v)))));   % thin each cloud for plotting
 % A prior CDF (for prior-equalized bins)
-a_priors = load(fullfile(cfg.paths.models, prior_filename(cfg, ecc)), 'ea', 'Na');
+a_priors = load(fullfile(cfg.paths.models, prior_filename(cfg, ecc)), ...
+    'edges_a_pixel', 'cdf_a_pixel');
 [plo, phi] = a_prior_quantiles(a_priors);           % 1-99% window, same as the uniform bins
 % high-res JSD-profile CDF from section 1
 Spr = load(fullfile('experiments', 'hist_gap_data.mat'), 'edges', 'jsd_cdf');
@@ -503,7 +504,8 @@ function D = hist_gap_collect(n_bins, npairs_total, n_images, cfg, ecc, want_ext
     % 1st/99th percentiles of the shipped A-channel prior CDF (feature 1) set the uniform-bin
     % window and the level-strip range (always the natural-image prior, so both sources share
     % one binning scheme); explicit edges (adaptive bins) are used as-is.
-    priors = load(fullfile(cfg.paths.models, prior_filename(cfg, ecc)), 'ea', 'Na');
+    priors = load(fullfile(cfg.paths.models, prior_filename(cfg, ecc)), ...
+        'edges_a_pixel', 'cdf_a_pixel');
     [lo, hi] = a_prior_quantiles(priors);
     if isscalar(n_bins)
         edges = linspace(lo, hi, n_bins + 1);      % uniform bins
@@ -515,7 +517,7 @@ function D = hist_gap_collect(n_bins, npairs_total, n_images, cfg, ecc, want_ext
     a_range = [lo, hi];   % map the 1-99% window black..white (full range is ~all black)
 
     % prior of A over the same bins (from the shipped CDF), for the overlay on panel g
-    xq = priors.ea(:); Nq = priors.Na(:);
+    xq = priors.edges_a_pixel(:); Nq = priors.cdf_a_pixel(:);
     if numel(xq) == numel(Nq) + 1, xq = xq(2:end); end   % CDF Na(k) = P(A <= ea(k+1))
     [xqu, iu] = unique(xq);
     prior_p = diff(interp1(xqu, Nq(iu), edges, 'linear', 'extrap'));   % per-bin prior probability
@@ -838,8 +840,8 @@ end
 function [lo, hi] = a_prior_quantiles(priors)
 % From the shipped A-channel prior CDF (values ea, cumulative prob Na), return the
 % 1st/99th percentiles.
-    ea = priors.ea(:);
-    Na = priors.Na(:);
+    ea = priors.edges_a_pixel(:);
+    Na = priors.cdf_a_pixel(:);
     if numel(ea) == numel(Na) + 1
         xq = ea(2:end);              % histcounts 'cdf': Na(k) = P(X <= ea(k+1))
     else
@@ -868,7 +870,7 @@ end
 function edges = prior_equalized_edges(n_bins, lo, hi, priors)
 % Bin edges placing EQUAL PRIOR MASS per bin between lo and hi (histogram equalization), from
 % the shipped prior CDF (ea values, Na cumulative).
-    ea = priors.ea(:); Na = priors.Na(:);
+    ea = priors.edges_a_pixel(:); Na = priors.cdf_a_pixel(:);
     if numel(ea) == numel(Na) + 1, ea = ea(2:end); end   % 'cdf': Na(k)=P(X<=ea(k+1))
     edges = equalize_cdf(n_bins, ea, Na, lo, hi);
 end

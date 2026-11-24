@@ -1,7 +1,7 @@
-function result = compare_otf_models(itypes, n_images, n_score, out_dir, bill_root)
+function result = compare_otf_models(texture_sets, n_images, n_score, out_dir, bill_root)
 % COMPARE_OTF_MODELS  Segment GTR images with this repo's optics and no-optics models.
 %   result = compare_otf_models()
-%   result = compare_otf_models(itypes, n_images, n_score, out_dir, bill_root)
+%   result = compare_otf_models(texture_sets, n_images, n_score, out_dir, bill_root)
 %
 %   For each texture set, makes n_score GTR images with Bill's mk_GTR_images.m and
 %   segments each one two ways with this repo's code (segment_bill_image):
@@ -35,7 +35,7 @@ function result = compare_otf_models(itypes, n_images, n_score, out_dir, bill_ro
 %   luminance and contrast normalized.
 %
 %   Inputs
-%     itypes     texture sets (1 Pertex, 2 Fabric, 3 Brodatz, 4 Brodatz+Fabric,
+%     texture_sets  texture sets (1 Pertex, 2 Fabric, 3 Brodatz, 4 Brodatz+Fabric,
 %                5 VisTex, 6 McGill); default [3 2 4 5 6 1].
 %     n_images   GTR images per texture set shown in the figures; default 4.
 %     n_score    GTR images per texture set scored (at least n_images); default 120,
@@ -44,13 +44,13 @@ function result = compare_otf_models(itypes, n_images, n_score, out_dir, bill_ro
 %     out_dir    folder for the PNGs; default data/stimuli/otf_models_comparison.
 %     bill_root  folder holding Bill's code (default: the sibling "Bill's code").
 %   Output
-%     result  struct array, one per texture set: .itype, .name, .n_correct
+%     result  struct array, one per texture set: .texture_set, .name, .n_correct
 %             (2 x n_score, regions exactly right; rows = segmentations 1-2)
 %
 % See also COMPARE_OTF_BILL, SEGMENT_BILL_IMAGE
 
     repo_root = fileparts(fileparts(mfilename('fullpath')));
-    if nargin < 1 || isempty(itypes),    itypes = [3 2 4 5 6 1]; end
+    if nargin < 1 || isempty(texture_sets), texture_sets = [3 2 4 5 6 1]; end
     if nargin < 2 || isempty(n_images),  n_images = 4; end
     if nargin < 3 || isempty(n_score),   n_score = 120; end
     if nargin < 4 || isempty(out_dir)
@@ -86,17 +86,17 @@ function result = compare_otf_models(itypes, n_images, n_score, out_dir, bill_ro
     cfg_otf = repo_cfgs{1};
 
     n_runs = numel(repo_cfgs);
-    emaps = cell(1, n_runs);                 % this image's region maps, for display
-    result = struct('itype', {}, 'name', {}, 'n_correct', {});
+    est_maps = cell(1, n_runs);              % this image's region maps, for display
+    result = struct('texture_set', {}, 'name', {}, 'n_correct', {});
     fprintf('%-15s %9s %9s %18s\n', '', 'optics', 'no-optics', 'diff +- SE');
-    for t = 1:numel(itypes)
-        name = set_names{itypes(t)};
+    for t = 1:numel(texture_sets)
+        name = set_names{texture_sets(t)};
         counts = zeros(n_runs, n_score);
         shown  = cell(n_runs + 1, n_images); % {display image, region map} per panel
         for b = 1:ceil(n_score / batch_size)
             first = (b - 1) * batch_size;    % images done before this batch
             addpath(bill_dirs{:});
-            [gtrimg, maps, texs] = bill_mk_gtr_images(itypes(t), ...
+            [gtrimg, maps, texs] = bill_mk_gtr_images(texture_sets(t), ...
                 min(batch_size, n_score - first), b - 1);
             path(repo_path);                 % Bill's files off the path, so none
             ntexr = size(texs, 2);           % shadows a repo function
@@ -109,20 +109,20 @@ function result = compare_otf_models(itypes, n_images, n_score, out_dir, bill_ro
                 for c = 1:n_runs
                     rng(state);
                     seg_new = segment_bill_image(repo_cfgs{c}, img, map, P.flgs(1));
-                    counts(c, k) = seg_new.nrg;
-                    if k <= n_images, emaps{c} = seg_new.emap; end
+                    counts(c, k) = seg_new.n_correct;
+                    if k <= n_images, est_maps{c} = seg_new.est_map; end
                 end
                 if k <= n_images             % what each run segments, for display
                     img_otf = vislab.lib.otf_filter(img, cfg_otf.optics.ppd, ...
                         cfg_otf.optics.pupil_diameter, cfg_otf.optics.wavelength);
-                    shown(:, k) = {{img, map}; {img_otf, emaps{1}}; {img, emaps{2}}};
+                    shown(:, k) = {{img, map}; {img_otf, est_maps{1}}; {img, est_maps{2}}};
                 end
             end
         end
 
         plot_comparison(name, row_labels, shown, shown_maps, counts(:, 1:n_images), ntexr, ...
             fullfile(out_dir, sprintf('otf_models_comparison_%s.png', strrep(name, '+', '_'))));
-        result(t) = struct('itype', itypes(t), 'name', name, 'n_correct', counts);
+        result(t) = struct('texture_set', texture_sets(t), 'name', name, 'n_correct', counts);
         print_score(name, counts / ntexr);
     end
     all_frac = [result.n_correct] / ntexr;

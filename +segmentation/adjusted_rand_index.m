@@ -11,7 +11,7 @@ function ari = adjusted_rand_index(true_map, est_map)
 %
 %   Inputs
 %     true_map  integer region labels (e.g. the GTR map, patches x patches).
-%     est_map   integer segment labels, same size (e.g. seg.emap).
+%     est_map   integer segment labels, same size (e.g. seg.est_map).
 %   Output
 %     ari  adjusted Rand index (Hubert & Arabie, 1985).
 %

@@ -8,8 +8,9 @@ function plot_model_diagram(cfg)
 %   enter directly (vislab.nat_stat_bayes.dv_border). Each later box is a
 %   quadratic decision bound trained in stage 5 (s5_train_decision_vars) on the
 %   outputs of the boxes that point into it; power (Fourier power similarity)
-%   joins at the content DV. The final DV (border + content, dbnd.bc) is the
-%   pairwise similarity the segmentation uses. With cfg.features.color on, the
+%   joins at the content DV. The final DV (border + content,
+%   decision_bounds.border_content) is the pairwise similarity the segmentation
+%   uses. With cfg.features.color on, the
 %   spot DV is built in two steps: achromatic and chromatic sub-DVs, then a bound
 %   over the two. With cfg.features.pca_gradient on, the separate H/V steerable
 %   filters at each scale feed the learned PCs; their large / mid / small gradient

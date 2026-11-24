@@ -3,8 +3,10 @@ function plot_stage2(cfg, ecc)
 %   task-optimized adaptive bins for the spot, edge and bar features.
 %   plot_stage2(cfg, ecc)
 %
-%   In colour mode, adds the B (blue-yellow) and R (red-green) pixel priors
-%   alongside the achromatic spot features.
+%   Rows of three: the spot features (A pixel, small and large centre-surround);
+%   in colour mode, the B (blue-yellow) and R (red-green) pixels; the edge
+%   magnitude and bar magnitude and orientation; with pca_gradient, the three PC
+%   gradient magnitudes.
 %
 % Inputs
 %   cfg  - config struct.
@@ -25,13 +27,15 @@ function plot_stage2(cfg, ecc)
         ecc_idx = find(S.eccs == ecc, 1);
     end
 
-    if cfg.features.color, nrows = 5; else, nrows = 4; end
-    has_pc = isfield(priors, 'epc1');     % gradient-PCA priors (pca_gradient only)
-    nrows = nrows + 2 * has_pc;             % three PC panels: two more rows
+    % one row of three per feature family: spot; colour pixels (colour mode only);
+    % edge and bar; gradient PCs (pca_gradient only)
+    has_pc = isfield(priors, 'edges_pc1');     % gradient-PCA priors (pca_gradient only)
+    nrows = 2 + cfg.features.color + has_pc;
     figure('Name', 'Stage 2: Natural Priors, and task-optimized bins', ...
-        'Position', [100 100 800 nrows*250]);
-    t = tiledlayout(nrows, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+        'Position', [100 100 1100 nrows*230]);
+    t = tiledlayout(nrows, 3, 'TileSpacing', 'compact', 'Padding', 'compact');
     title(t, 'Stage 2: Natural Priors, and task-optimized bins');
+    tile = @(row, col) (row - 1) * 3 + col;
 
     trunc_xlim = @(e, N) xlim([e(max(1, find(N >= 0.01, 1, 'first'))), ...
         e(max(1, find(N >= 0.99, 1, 'first')))]);
@@ -57,53 +61,34 @@ function plot_stage2(cfg, ecc)
         xlabel(xl_str);
     end
 
-    % --- SPOT FEATURES (Rows 1 & 2; +B/R rows if colour) ---
-    % 1. Achromatic (Dim 1)
-    plot_feature(1, priors.ea, priors.Na, 1, 'Achromatic');
-
-    if cfg.features.color
-        % 1b. Blue-Yellow pixel (Dim 2)
-        plot_feature(2, priors.eb, priors.Nb, 2, 'Blue-Yellow (B) Pixel');
-    end
-
-    % 2. Center-Surround Small (Dim 13)
-    plot_feature(3, priors.ecs2, priors.Ncs2, 13, 'Center-Surround (Small)');
+    % --- row 1: spot features ---
+    plot_feature(tile(1, 1), priors.edges_a_pixel, priors.cdf_a_pixel, 1, 'Achromatic');
+    plot_feature(tile(1, 2), priors.edges_cs_linear_small, ...
+        priors.cdf_cs_linear_small, 13, 'Center-Surround (Small)');
     add_inset(local_cs_kernel(3, 2));
-
-    if cfg.features.color
-        % 2b. Red-Green pixel (Dim 3)
-        plot_feature(4, priors.er, priors.Nr, 3, 'Red-Green (R) Pixel');
-        cs_large_idx = 5;
-    else
-        cs_large_idx = 4;
-    end
-
-    % 3. Center-Surround Large (Dim 14)
-    plot_feature(cs_large_idx, priors.ecs4, priors.Ncs4, 14, 'Center-Surround (Large)');
+    plot_feature(tile(1, 3), priors.edges_cs_linear_large, ...
+        priors.cdf_cs_linear_large, 14, 'Center-Surround (Large)');
     add_inset(local_cs_kernel(5, 4));
 
-    % --- EDGE FEATURES ---
-    % skip the empty slot beside CS-Large's row
-    if cfg.features.color, edge_row = 7; else, edge_row = 5; end
+    % --- colour pixels (colour mode only) ---
+    row = 2;
+    if cfg.features.color
+        plot_feature(tile(row, 1), priors.edges_b_pixel, priors.cdf_b_pixel, 2, ...
+            'Blue-Yellow (B) Pixel');
+        plot_feature(tile(row, 2), priors.edges_r_pixel, priors.cdf_r_pixel, 3, ...
+            'Red-Green (R) Pixel');
+        row = row + 1;
+    end
 
-    % 4. 1st Deriv Magnitude / Edge (Dim 5)
-    plot_feature(edge_row, priors.em, priors.Nm, 5, '1st Deriv (Edge) Magnitude');
+    % --- edge and bar features ---
+    plot_feature(tile(row, 1), priors.edges_edge_mag, ...
+        priors.cdf_edge_mag, 5, '1st Deriv (Edge) Magnitude');
     add_inset(k_edge);
-
-    % 5. 1st Deriv Orientation / Edge (Dim 6)
-    plot_feature(edge_row+1, priors.eo, priors.No, 6, '1st Deriv (Edge) Orientation (degrees)');
-    xlim([-180 180]); xticks([-180 0 180]);
-    add_inset(k_edge);
-
-    % --- BAR FEATURES ---
-    bar_row = edge_row + 2;
-
-    % 6. 2nd Deriv Magnitude / Bar (Dim 9)
-    plot_feature(bar_row, priors.em2, priors.Nm2, 9, '2nd Deriv (Bar) Magnitude');
+    plot_feature(tile(row, 2), priors.edges_bar_mag, priors.cdf_bar_mag, 9, ...
+        '2nd Deriv (Bar) Magnitude');
     add_inset(k_bar);
-
-    % 7. 2nd Deriv Orientation / Bar (Dim 10)
-    plot_feature(bar_row+1, priors.eo2, priors.No2, 10, '2nd Deriv (Bar) Orientation (degrees)');
+    plot_feature(tile(row, 3), priors.edges_bar_ori, ...
+        priors.cdf_bar_ori, 10, '2nd Deriv (Bar) Orientation (degrees)');
     xlim([-90 90]); xticks([-90 0 90]);
     add_inset(k_bar);
 
@@ -115,8 +100,8 @@ function plot_stage2(cfg, ecc)
             'PC Small Gradient Magnitude'};
         if ~isempty(cfg.pcgrad.model), [~, pc_filt] = pc_filter_images(cfg.pcgrad.model); end
         for j = 1:3
-            plot_feature(bar_row+1+j, priors.(sprintf('epc%d', j)), ...
-                priors.(sprintf('Npc%d', j)), 14+j, pc_titles{j});
+            plot_feature(tile(row + 1, j), priors.(sprintf('edges_pc%d', j)), ...
+                priors.(sprintf('cdf_pc%d', j)), 14+j, pc_titles{j});
             if isempty(cfg.pcgrad.model), continue; end
             add_inset(pc_filt{2*j-1}, pc_filt{2*j});
         end

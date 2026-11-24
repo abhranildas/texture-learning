@@ -31,10 +31,10 @@ function seg = segment_image(cfg, img, map, opts)
 %
 %   Output
 %     seg  struct:
-%            .emap   estimated region map (patches x patches)
-%            .ngrps  number of regions found
-%            .nrg    regions exactly matching a true region (NaN without map)
-%            .pcmx   same/different accuracy on patch pairs at the learned
+%            .est_map   estimated region map (patches x patches)
+%            .n_groups  number of regions found
+%            .n_correct regions exactly matching a true region (NaN without map)
+%            .accuracy_best  same/different accuracy on patch pairs at the learned
 %                    criterion (NaN without map)
 %            .lms    the LMS image that was segmented (after any cropping)
 %            .stages intermediate results (segmentation.learn_image_similarity)
@@ -95,8 +95,8 @@ function seg = segment_image(cfg, img, map, opts)
     % --- segment ---
     seg = segmentation.segment_lms(cfg, lms, map, opts.params);
     if ~scored
-        seg.nrg = NaN;
-        seg.pcmx = NaN;
+        seg.n_correct = NaN;
+        seg.accuracy_best = NaN;
     end
     seg.lms = lms;
 
@@ -130,11 +130,12 @@ function show(cfg, seg, map, scored)
     end
     subplot(1, 2, 2);
     image(rgb); axis image off; hold on;
-    overlay_region_boundaries(imresize(seg.emap, sz, 'nearest'));
+    overlay_region_boundaries(imresize(seg.est_map, sz, 'nearest'));
     if scored
-        title(sprintf('Segmentation: %d of %d regions exactly right', seg.nrg, max(map(:))));
+        title(sprintf('Segmentation: %d of %d regions exactly right', seg.n_correct, ...
+            max(map(:))));
     else
-        title(sprintf('Segmentation (%d regions)', seg.ngrps));
+        title(sprintf('Segmentation (%d regions)', seg.n_groups));
     end
     drawnow;
 end

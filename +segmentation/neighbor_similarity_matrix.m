@@ -1,20 +1,22 @@
-function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch_x, patch_y, ...
-        neighbor_distance, bin_bounds, n_bins, dv, cfg)
+function [neighbor_sim, patch_dist] = neighbor_similarity_matrix(region_image, patch_size, ...
+        patch_x, patch_y, neighbor_distance, bin_bounds, n_bins, dv, cfg)
 % NEIGHBOR_SIMILARITY_MATRIX  Border+content similarity for neighbouring patch pairs.
-%   [phi, dst] = segmentation.neighbor_similarity_matrix(region_image, ...
-%       patch_size, patch_x, patch_y, neighbor_distance, ...
+%   [neighbor_sim, patch_dist] = segmentation.neighbor_similarity_matrix( ...
+%       region_image, patch_size, patch_x, patch_y, neighbor_distance, ...
 %       bin_bounds, n_bins, dv, cfg)
 %
 %   For each NEIGHBOURING patch pair (Euclidean patch-centre distance equal to
 %   neighbor_distance), computes the power/spot/edge content DV and the border DV
-%   and combines them with the trained border+content bound (dv.bc), giving the
-%   self-supervised similarity phi_ij used for grouping. Non-neighbour entries are
-%   zero. Also returns the full pairwise distance matrix dst. Used by stage s7.
+%   and combines them with the trained border+content bound (dv.border_content),
+%   giving the neighbour similarity neighbor_sim (Bill's phi) used for grouping.
+%   Non-neighbour entries are zero. Also returns patch_dist, the full matrix of
+%   patch-centre distances in pixels (Bill's dst). Used by stage s7.
 %   (Was the neighbour "phi" loop in tex_grp_s_p_ms_SS_{ncm,ncbm}.m.)
 %
 %   Inputs mirror segmentation.content_similarity_matrix, plus:
 %     neighbor_distance - distance (pixels) identifying a neighbouring pair (= patch_size).
-%     dv                - struct of trained DV handles: dv.h, dv.e, dv.c, dv.b, dv.bc.
+%     dv                - struct of trained DV handles (load_dv_handles): .spot,
+%                         .edge, .content, .border, .border_content.
 %
 %   Note: per-pair DVs use cfg.dv.power_suppress (b0), as do
 %   neighbor_far_responses, content_similarity_matrix and training (s5).
@@ -41,8 +43,8 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
     patch_features = segmentation.content_features(patches, achrom, edge_channel, ...
         patch_size, bin_bounds, n_bins, spot_dims, edge_dims, cfg);
 
-    phi = zeros(n, n);
-    dst = zeros(n, n);
+    neighbor_sim = zeros(n, n);
+    patch_dist = zeros(n, n);
     for i = 1:n
         x1 = (patch_x(i) - 1) * patch_size + 1;
         y1 = (patch_y(i) - 1) * patch_size + 1;
@@ -50,8 +52,8 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
             x2 = (patch_x(j) - 1) * patch_size + 1;
             y2 = (patch_y(j) - 1) * patch_size + 1;
             dij = sqrt((x1 - x2)^2 + (y1 - y2)^2);
-            dst(i, j) = dij;
-            dst(j, i) = dij;
+            patch_dist(i, j) = dij;
+            patch_dist(j, i) = dij;
             if dij ~= neighbor_distance
                 continue;
             end
@@ -60,16 +62,16 @@ function [phi, dst] = neighbor_similarity_matrix(region_image, patch_size, patch
             else
                 dir = 2;
             end
-            rc = segmentation.content_dv_pair(patch_features{patch_x(i), patch_y(i)}, ...
+            content_dv = segmentation.content_dv_pair(patch_features{patch_x(i), patch_y(i)}, ...
                 patch_features{patch_x(j), patch_y(j)}, ...
-                patch_size, power_suppress, dv.h, dv.e, dv.c, spot_dims, edge_dims);
+                patch_size, power_suppress, dv.spot, dv.edge, dv.content, spot_dims, edge_dims);
             border = segmentation.border_cue(cfg, edge_channel, windows, ...
                 patch_x(i), patch_y(i), patch_x(j), patch_y(j), dir);
-            rb = dv.b(border(1:2)');
+            border_dv = dv.border(border(1:2)');
 
             % [content, border] ordering (Geisler-confirmed; matches s5 dbndbc training)
-            phi(i, j) = dv.bc([rc, rb]');
-            phi(j, i) = phi(i, j);
+            neighbor_sim(i, j) = dv.border_content([content_dv, border_dv]');
+            neighbor_sim(j, i) = neighbor_sim(i, j);
         end
     end
 end

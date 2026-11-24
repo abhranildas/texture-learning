@@ -1,7 +1,7 @@
-function n_correct = plot_stage7(cfg, ecc, itypes)
+function n_correct = plot_stage7(cfg, ecc, texture_sets)
 % PLOT_STAGE7  Segment one GTR image from each texture set at the fixed parameters
 %   and show the result.
-%   n_correct = plot_stage7(cfg, ecc, itypes)
+%   n_correct = plot_stage7(cfg, ecc, texture_sets)
 %
 %   For each texture set, builds one GTR image and segments it with segment_image
 %   at the fixed parameters cfg.segment. Top row: each GTR image with its
@@ -10,16 +10,16 @@ function n_correct = plot_stage7(cfg, ecc, itypes)
 % Inputs
 %   cfg     config struct.
 %   ecc     eccentricity divisor (patch geometry is divided by it).
-%   itypes  texture sets to show (default 1:6): 1 Pertex, 2 Fabric, 3 Brodatz,
+%   texture_sets  texture sets to show (default 1:6): 1 Pertex, 2 Fabric, 3 Brodatz,
 %           4 Brodatz+Fabric, 5 VisTex, 6 McGill.
 % Output
-%   n_correct  1 x numel(itypes), regions segmented exactly right in each image
+%   n_correct  1 x numel(texture_sets), regions segmented exactly right in each image
 %
 % See also SEGMENTATION.SEGMENT_LMS, S7_SEGMENT_GTR, TINT_REGIONS,
 %   OVERLAY_REGION_BOUNDARIES
-    if nargin < 3 || isempty(itypes), itypes = 1:6; end
+    if nargin < 3 || isempty(texture_sets), texture_sets = 1:6; end
     set_names = {'Pertex', 'Fabric', 'Brodatz', 'Brodatz + Fabric', 'VisTex', 'McGill'};
-    n_sets = numel(itypes);
+    n_sets = numel(texture_sets);
 
     figure('Name', 'Stage 7a: GTR Segmentation', 'Position', [100 250 1700 650]);
     n_correct = zeros(1, n_sets);
@@ -27,27 +27,27 @@ function n_correct = plot_stage7(cfg, ecc, itypes)
     subplot(2, n_cols, 1);           local_row_label('ground truth');
     subplot(2, n_cols, n_cols + 1);  local_row_label('segmented');
     for s = 1:n_sets
-        [pimg, map] = make_gtr_image(cfg, itypes(s), 1, ecc);
+        [pimg, map] = make_gtr_image(cfg, texture_sets(s), 1, ecc);
         seg = segment_image(cfg, pimg, map);
-        n_correct(s) = seg.nrg;
+        n_correct(s) = seg.n_correct;
 
         % pimg is LMS (grayscale for Brodatz/Pertex, colour for Fabric etc, as in
         % Bill's self_sup_tex_segm). In achromatic mode patch_to_rgb_display shows
         % the A channel the model segments; in colour mode, the true colour.
         pimg_rgb = patch_to_rgb_display(cfg, pimg, 'lms');
         map_up = imresize(map, [size(pimg,1), size(pimg,2)], 'nearest');
-        groups_up = imresize(seg.emap, [size(pimg,1), size(pimg,2)], 'nearest');
+        groups_up = imresize(seg.est_map, [size(pimg,1), size(pimg,2)], 'nearest');
 
         % Achromatic: colour-tint each region; segments take the colour of the
         % true region they overlap most. Colour model: black-and-white region borders.
         subplot(2, n_cols, s + 1);
         local_show(cfg, pimg_rgb, map_up);
-        title(set_names{itypes(s)});
+        title(set_names{texture_sets(s)});
 
         subplot(2, n_cols, n_cols + s + 1);
         local_show(cfg, pimg_rgb, match_region_labels(groups_up, map_up));
-        title(sprintf('%d/%d correct\nARI: %.2f', seg.nrg, cfg.gtr.n_regions, ...
-            segmentation.adjusted_rand_index(map, seg.emap)));
+        title(sprintf('%d/%d correct\nARI: %.2f', seg.n_correct, cfg.gtr.n_regions, ...
+            segmentation.adjusted_rand_index(map, seg.est_map)));
 
         drawnow; % update UI
     end

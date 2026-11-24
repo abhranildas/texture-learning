@@ -7,6 +7,12 @@ This document is written to be executed by someone (or something) that has not s
 comparison. Every claim about Bill's code is cited by `file:line`. Follow the steps in
 order; each one names the exact file and edit.
 
+> **Names.** Item 0.3.12 of `docs/repo-cleanup.md` renamed this repo's terse identifiers and the
+> names saved in `data/models` (`dbnd` → `decision_bounds`, `dv.h/e/c/b/bc` → `dv.spot/edge/content/border/border_content`,
+> `phiall`/`rho`/`phi`/`mu` → `content_sim`/`mutual_sim`/`neighbor_sim`/`combined_sim`, `itype` → `texture_set`, …).
+> Snippets below that quote this repo's code still use the old names; translate them with the
+> table in `docs/segmentation-parity.md` (section 4). Names quoted from Bill's code are unchanged.
+
 ---
 
 ## Part 0 — Verification of Bill's change

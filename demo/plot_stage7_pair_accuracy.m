@@ -1,18 +1,19 @@
-function [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, itypes)
+function [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, texture_sets)
 % PLOT_STAGE7_PAIR_ACCURACY  Per texture set, GTR discrimination vs segmentation,
 %   and segmentation agreement (adjusted Rand index), each mean +/- SD over images.
-%   [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, itypes)
+%   [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, texture_sets)
 %
 %   Each GTR image is segmented with segment_image at the fixed parameters
-%   cfg.segment. Its grouping criterion gc and mutual-similarity weight wm are
-%   chosen from the image alone, as those that best separate near pairs (treated
-%   as "same") from far pairs (treated as "different") -- the proximity proxy.
+%   cfg.segment. Its grouping criterion and mutual-similarity weight
+%   (seg.stages.group_crit_best, .mutual_weight_best) are chosen from the image
+%   alone, as those that best separate near pairs (treated as "same") from far
+%   pairs (treated as "different") -- the proximity proxy.
 %     acc        fraction of those near and far pairs whose true same/different
-%                label (from the region map) is called correctly at that gc and wm
-%                (seg.pcmx). This is the accuracy (pcmx0) whose per-set histograms
-%                Bill plots in test_ss_disc.m.
+%                label (from the region map) is called correctly at that criterion
+%                and weight (seg.accuracy_best). This is the accuracy (Bill's
+%                pcmx0) whose per-set histograms Bill plots in test_ss_disc.m.
 %     frac_exact fraction of the image's true regions that the segmentation
-%                reproduces exactly (seg.nrg / cfg.gtr.n_regions), as in stage 7a.
+%                reproduces exactly (seg.n_correct / cfg.gtr.n_regions), as in stage 7a.
 %     ari        adjusted Rand index of the segmentation against the true map
 %                (segmentation.adjusted_rand_index): partial credit, 1 = perfect,
 %                0 = chance.
@@ -26,26 +27,26 @@ function [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, 
 %             the fixed grouping parameters.
 %   ecc       eccentricity downsample factor (1, 2, 4, 8).
 %   n_images  GTR images per texture set (Bill's slides use 20).
-%   itypes    texture sets to show (default 1:6): 1 Pertex, 2 Fabric, 3 Brodatz,
+%   texture_sets  texture sets to show (default 1:6): 1 Pertex, 2 Fabric, 3 Brodatz,
 %             4 Brodatz+Fabric, 5 VisTex, 6 McGill.
 % Outputs
-%   acc, frac_exact, ari  [n_images x numel(itypes)], one column per texture set.
+%   acc, frac_exact, ari  [n_images x numel(texture_sets)], one column per texture set.
 %
 % See also SEGMENT_IMAGE, SEGMENTATION.ADJUSTED_RAND_INDEX, MAKE_GTR_IMAGE, PLOT_STAGE7
-    if nargin < 4 || isempty(itypes), itypes = 1:6; end
+    if nargin < 4 || isempty(texture_sets), texture_sets = 1:6; end
     set_names = {'Pertex', 'Fabric', 'Brodatz', 'Brodatz + Fabric', 'VisTex', 'McGill'};
-    names = set_names(itypes);
-    n_sets = numel(itypes);
+    names = set_names(texture_sets);
+    n_sets = numel(texture_sets);
 
     [acc, frac_exact, ari] = deal(zeros(n_images, n_sets));
     for s = 1:n_sets
         fprintf('   %s: %d GTR images...\n', names{s}, n_images);
-        [imgs, maps] = make_gtr_image(cfg, itypes(s), n_images, ecc);
+        [imgs, maps] = make_gtr_image(cfg, texture_sets(s), n_images, ecc);
         for k = 1:n_images
             seg = segment_image(cfg, imgs(:, :, :, k), maps(:, :, k));
-            acc(k, s) = seg.pcmx;
-            frac_exact(k, s) = seg.nrg / cfg.gtr.n_regions;
-            ari(k, s) = segmentation.adjusted_rand_index(maps(:, :, k), seg.emap);
+            acc(k, s) = seg.accuracy_best;
+            frac_exact(k, s) = seg.n_correct / cfg.gtr.n_regions;
+            ari(k, s) = segmentation.adjusted_rand_index(maps(:, :, k), seg.est_map);
         end
     end
 

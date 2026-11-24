@@ -128,3 +128,59 @@ Found while matching his code. "Verified" means checked by running it or by the 
 - Each was fit to a different random pixel sample (#4).
 
 Sampling alone gives differences of this size. The committed and current working copies of `vislab-common/data/cps_lms2abr_otf.mat` differ from each other by up to 0.0028. (That file also has uncommitted changes in `vislab-common`.)
+
+## 4. Our names ↔ Bill's names
+
+Item 0.3.12 of `docs/repo-cleanup.md` gave this repo's code readable names. This table lets you read
+the repo side by side with Bill's `ss_segm.m`, `self_sup_tex_*.m` and `nat_near_far_dv_2.m`. Sections 1–3
+above were written before the rename and quote both codebases with Bill's names. The golden file
+`tools/golden_bill_segm.mat` also keeps Bill's names; `check_bill_segmentation` maps them.
+
+**Similarity and grouping (`segmentation.learn_image_similarity`, `segment_lms`, `group_patches`)**
+
+| This repo | Bill | Meaning |
+|---|---|---|
+| `content_sim` | `phiall` | all-pairs content similarity (paper $\phi_{ij}$) |
+| `mutual_sim` | `rho` | mutual similarity (paper $u_{ij}$) |
+| `neighbor_sim` | `phi` | neighbour border+content similarity |
+| `combined_sim` | `mu` | `neighbor_sim + mutual_weight_best * mutual_sim` on neighbours (paper $s_{ij}$) |
+| `patch_dist` | `dst` | patch-centre distances, pixels |
+| `group_crit`, `group_crit_vec` | `gc` | grouping criterion (paper $\gamma_l$) and its sweep |
+| `mutual_weight`, `mutual_weight_vec` | `wm` | mutual-similarity weight (paper $w_m$) and its sweep |
+| `group_crit_best`, `mutual_weight_best` | `gcopt`, `wmopt` | values learned per image |
+| `n_crit`, `n_weight` | `ngc`, `nms` | sweep lengths |
+| `content_near`, `border_near`, `mutual_near` | `rcn`, `rbn`, `rmn` | near pairs' content DV, border DV, mutual similarity |
+| `content_far`, `border_far`, `mutual_far` | `rcf`, `rbf`, `rmf` | the same for far pairs |
+| `R.n_pairs` | `ncnt` | pairs of each kind |
+| `bc_near`, `bc_far` | `qbs`, `qbd` | per-image border+content DV of near / far pairs |
+| `shift` (`self_sup_decision`) | `copt` | learned criterion shift |
+| `accuracy`, `accuracy_same`, `accuracy_diff`, `accuracy_nearfar` | `pc`, `pcs`, `pcd`, `pcnf` | same/different, same-only, different-only and near/far proportion correct |
+| s6 `out.accuracy`, `.accuracy_same`, `.accuracy_diff`, `.accuracy_nearfar` | `pcav`, `pcsav`, `pcdav`, `pcnfav` | the same, averaged over trials |
+| `accuracy_best` | `pcmx` | same/different accuracy at the learned criterion and weight |
+| `est_map` | `emap` | estimated region map |
+| `n_groups` | `ngrps` | number of regions found |
+| `n_correct` | `nrg` | regions exactly matching a true region |
+| `cfg.segment.group_offset`, `.confidence`, `.merge` | `gl`, `gcc`, `gr` | fixed grouping parameters (paper $\gamma_c$, $\gamma_r$ for the last two) |
+| `cfg.dv.power_suppress` | `b0` | weak Fourier-power suppression |
+
+**Trained model (`s5_train_decision_vars`, `load_dv_handles`, files in `data/models`)**
+
+| This repo | Bill | Meaning |
+|---|---|---|
+| `decision_bounds` (saved variable) | `dbnd*` files | struct of trained quadratic bounds |
+| `decision_bounds.spot` / `dv.spot` | `dbndh` | spot DV |
+| `decision_bounds.spot_achr`, `.spot_chrom` | `dbndha`, `dbndhb` (files `dbndahNO1`, `dbndbhNO1`) | colour model's achromatic / chromatic spot sub-DVs |
+| `decision_bounds.edge` / `dv.edge` | `dbnde` | edge DV |
+| `decision_bounds.content` / `dv.content` | `dbndc` | content DV |
+| `decision_bounds.border` / `dv.border` | `dbndb` | border DV |
+| `decision_bounds.border_content` / `dv.border_content` | `dbndbc` | border+content DV |
+| `decision_bounds.ms_grad`, `.n_ms_grad` | — (was `pg`, `ms_n`) | gradient-PCA bound and its input count (this repo only) |
+| `decision_bounds.n_spot_achr` | — (was `spot_achr_n`) | number of achromatic spot dims |
+| `bound_type` (bins files), `feature_bound_type` | `btype`, `cstat` | histogram-bound type (5 = natural images) and its per-feature selector |
+| `bin_ecc` | — (was `eccb`) | eccentricity of the bins used |
+| `texture_set`, `texture_sets` | `itype` | texture set: 1 Pertex, 2 Fabric, 3 Brodatz, 4 Brodatz+Fabric, 5 VisTex, 6 McGill |
+| priors `cdf_<feature>`, `edges_<feature>` | `N<tag>`, `e<tag>` (e.g. `Na`, `ea`) | natural-prior CDFs and bin edges |
+
+`NO` in Bill's file names (`dbndhNO1`) means natural-image-trained with optics applied (vs `BF`,
+Brodatz/Fabric-trained); the trailing digit is the resolution level. Bill's training-method labels N, NC, NCB,
+NM, NCM, NCBM: N = natural-image-trained; +C content-criterion adjust; +B border adjust; +M mutual-similarity weight.
