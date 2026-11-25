@@ -64,62 +64,82 @@ run_demo      % asks for quick/full mode, optics and colour, then runs the demo
 At the end of each run, the demo saves every figure it drew to `docs/demo_figures/`. The figures below come
 from the most recent run committed to the repo.
 
+![Model diagram](docs/demo_figures/model.png)
+
 **Model diagram.** How the features of a patch pair are combined, through a hierarchy of trained quadratic
 decision bounds, into the final same/different decision variable (DV).
 
-![Model diagram](docs/demo_figures/model.png)
+---
+
+![Stage 1](docs/demo_figures/stage_1.png)
 
 **Stage 1: colour transforms.** Natural-image pixels in RGB, LMS (cone) and ABR space. The learned LMS→ABR
 rotation decorrelates the channels.
 
-![Stage 1](docs/demo_figures/stage_1.png)
+---
+
+![Stage 1b](docs/demo_figures/stage_1b.png)
 
 **Stage 1b: multi-scale gradients.** Horizontal and vertical first-derivative responses at several scales, and
 their joint principal components (PCs), which come out in horizontal/vertical pairs.
 
-![Stage 1b](docs/demo_figures/stage_1b.png)
+---
+
+![Stage 2](docs/demo_figures/stage_2.png)
 
 **Stage 2: feature priors.** The natural-image distribution of each feature, with the bins optimized for the
 near/far task. Each panel's inset shows the feature's filter kernel.
 
-![Stage 2](docs/demo_figures/stage_2.png)
+---
+
+![Stage 3](docs/demo_figures/stage_3.png)
 
 **Stage 3: near and far pairs.** Example patch pairs from natural images. Near pairs stand in for "same
 texture" and far pairs for "different texture".
 
-![Stage 3](docs/demo_figures/stage_3.png)
+---
+
+![Stage 5A](docs/demo_figures/stage_5a.png)
 
 **Stage 5A: building the spot, gradient and border DVs.** For each DV: near and far pairs in its input
 feature space with the trained boundary (top), each feature's share of d′ measured on the data (middle),
 and the resulting DV distributions (bottom).
 
-![Stage 5A](docs/demo_figures/stage_5a.png)
+---
+
+![Stage 5B](docs/demo_figures/stage_5b.png)
 
 **Stage 5B: building the content and final DVs.** The same layout for the content DV (power, spot and
 gradient DVs) and for the final DV (content and border DVs).
 
-![Stage 5B](docs/demo_figures/stage_5b.png)
+---
+
+![Stage 6](docs/demo_figures/stage_6.png)
 
 **Stage 6: same/different on texture pairs.** Random pairs of texture patches, with the true answer and the
 model's decision.
 
-![Stage 6](docs/demo_figures/stage_6.png)
+---
+
+![Stage 7a](docs/demo_figures/stage_7a.png)
 
 **Stage 7a: GTR segmentation.** One grown-texture-region (GTR) image from each texture set, with its true
 regions (top) and the model's segmentation (bottom).
 
-![Stage 7a](docs/demo_figures/stage_7a.png)
+---
+
+![Stage 7b](docs/demo_figures/stage_7b.png)
 
 **Stage 7b: performance per texture set.** For many GTR images per set, the same/different accuracy on patch
 pairs against the adjusted Rand index of the segmentation (1 = perfect, 0 = chance). One point per image;
 boxes show each set's mean ± 1 SD.
 
-![Stage 7b](docs/demo_figures/stage_7b.png)
+---
+
+![Stage 8](docs/demo_figures/stage_8.png)
 
 **Stage 8: natural-image segmentation.** The same segmentation applied to a natural image, which has no true
 regions to score against.
-
-![Stage 8](docs/demo_figures/stage_8.png)
 
 ## Main functions
 
