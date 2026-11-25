@@ -328,7 +328,8 @@ drawnow;
 fprintf('\n--- Stage 8: Natural-Image Segmentation ---\n');
 fprintf('Running the same self-supervised segmentation (64x64 patches) on a natural image.\n');
 fprintf('It has no ground-truth regions, so group_crit_best/mutual_weight_best are still learned from proximity,\n');
-fprintf('and the fixed grouping parameters are the same as in Stage 7a.\n');
+fprintf('and the fixed grouping parameters are those of Stage 7a, with a stricter link\n');
+fprintf('threshold (+%.1f; see cfg.natural.extra_group_offset).\n', cfg.natural.extra_group_offset);
 plot_stage8_natural(cfg, ecc);
 
 save_demo_figures(cfg);     % PNGs for the README's demo section (docs/demo_figures)

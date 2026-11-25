@@ -3,7 +3,8 @@ function plot_stage8_natural(cfg, ecc)
 %   plot_stage8_natural(cfg, ecc)
 %
 %   Applies the exact self-supervised segmentation used on GTR images
-%   (segment_image at the fixed parameters cfg.segment) to a real
+%   (segment_image at the fixed parameters cfg.segment, with the link threshold
+%   raised by cfg.natural.extra_group_offset) to a real
 %   natural image, using the same 64x64 (= cfg.patch.size/ecc) patches. The image
 %   is clipped to the largest rectangle that is a whole number of patches.
 %
@@ -13,7 +14,8 @@ function plot_stage8_natural(cfg, ecc)
 %       from the near/far accuracy, which uses proximity only. An all-zero map is passed; it only sets the
 %       patch grid and fills the unused same/different labels.
 %     * there is nothing to score the segmentation against, so no accuracy is
-%       reported; the fixed parameters are the ones chosen on GTR images (s7).
+%       reported; the fixed parameters are the ones chosen on GTR images (s7),
+%       apart from the raised link threshold.
 %   Under cfg.bill_compat this image still gets the shared (corrected) optics, not
 %   Bill's: his formula is defined for square images only.
 %
@@ -42,7 +44,11 @@ function plot_stage8_natural(cfg, ecc)
     pimg = imresize(pimg, 0.5);              % halve the image before segmenting
 
     % segment_image crops it (top-left) to whole patches
-    seg = segment_image(cfg, pimg, [], ecc=ecc);
+    % same parameters as GTR, with a stricter link threshold (see config.m,
+    % cfg.natural.extra_group_offset)
+    params = cfg.segment;
+    params.group_offset = params.group_offset + cfg.natural.extra_group_offset;
+    seg = segment_image(cfg, pimg, [], ecc=ecc, params=params);
     pimg = seg.lms;
     groups2d = seg.est_map;
     fprintf('stage 8: segmented a %dx%d natural image (%dx%d patches of %dpx).\n', ...

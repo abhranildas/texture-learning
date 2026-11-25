@@ -213,6 +213,11 @@ function cfg = config(color, optics, test_optics, pca_gradient)
         cfg.segment = struct('method', 'bc', 'group_offset', -0.25, 'confidence', 1.2, ...
             'merge', 0.8);
     end
+    % Natural images (stage 8) add this to cfg.segment.group_offset: a stricter link
+    % threshold. A natural image has many more patches than a GTR image, so at the
+    % GTR threshold a few links across region boundaries chain almost every patch
+    % into one region. Set by eye on the stage 8 image (Set12_16_143); GTR is unaffected.
+    cfg.natural.extra_group_offset = 2;
 
     % --- reproducibility ---
     cfg.seed = 0;
