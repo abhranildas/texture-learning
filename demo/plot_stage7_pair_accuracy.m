@@ -1,6 +1,6 @@
 function [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, texture_sets)
 % PLOT_STAGE7_PAIR_ACCURACY  Per texture set, GTR discrimination vs segmentation,
-%   and segmentation agreement (adjusted Rand index), each mean +/- SD over images.
+%   and segmentation agreement (adjusted Rand index), one point per image.
 %   [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, texture_sets)
 %
 %   Each GTR image is segmented with segment_image at the fixed parameters
@@ -18,9 +18,9 @@ function [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, 
 %                (segmentation.adjusted_rand_index): partial credit, 1 = perfect,
 %                0 = chance.
 %
-%   Left plot: one point per texture set at (mean acc, mean frac_exact), labelled
-%   with the set's name, in a shaded box spanning +/- 1 SEM on each axis. Right
-%   plot: the same, with mean ARI on the y-axis. (SEM = SD / sqrt(n_images).)
+%   Plot: one point per GTR image at (acc, ari), coloured by texture set, with a
+%   shaded box per set spanning its mean +/- 1 SD on each axis. frac_exact is
+%   returned but not plotted.
 %
 % Inputs
 %   cfg       config struct (config.m); cfg.segment sets the per-image rule and
@@ -50,66 +50,31 @@ function [acc, frac_exact, ari] = plot_stage7_pair_accuracy(cfg, ecc, n_images, 
         end
     end
 
-    n_pairs = 2 * numel(seg.stages.same_near);   % near + far pairs per image
     colors = lines(n_sets);
     figure('Name', 'Stage 7b: GTR discrimination & segmentation performance', ...
-        'Position', [150 250 1400 550]);
-
-    % Both plots: x = pair accuracy; y = fraction exactly right (left) or ARI (right).
-    % Each axis runs between round values just enclosing the boxes (local_hug),
-    % with ticks only at those two limits.
-    sem = @(v) std(v, 0, 1) / sqrt(size(v, 1));    % standard error of the mean
-    mx = mean(acc, 1);  sx = sem(acc);
-    x_ticks = local_hug(mx - sx, mx + sx);
-
-    subplot(1, 2, 1);
-    my = mean(frac_exact, 1);  sy = sem(frac_exact);
-    local_box_scatter(mx, sx, my, sy, names, colors, x_ticks, local_hug(my - sy, my + sy));
-    ylabel('fraction of regions correctly segmented');
-    title({'Mean, box = \pm1 SEM', ...
-        sprintf('%d images per set', ...
-        n_images)});
-
-    subplot(1, 2, 2);
-    ma = mean(ari, 1);  sa = sem(ari);
-    local_box_scatter(mx, sx, ma, sa, names, colors, x_ticks, local_hug(ma - sa, ma + sa));
+        'Position', [150 250 750 600]);
+    local_cloud(acc, ari, names, colors);
     ylabel('adjusted Rand index');
-    title({'Mean, box = \pm1 SEM', ...
-        sprintf('%d images per set', n_images)});
-
-    sgtitle('Stage 7b: GTR discrimination & segmentation performance');
+    title({'Stage 7b: GTR discrimination & segmentation performance', ...
+        sprintf('one point per image (%d per set), box = mean \\pm 1 SD', n_images)});
 end
 
 % ------------------------------------------------------------------------------
-function lims = local_hug(lo, hi)
-% Round axis limits just enclosing [min(lo), max(hi)]: rounded down/up to a step
-% of 1, 2 or 5 x 10^k, chosen so the data span about 3-10 steps.
-    lo = min(lo);  hi = max(hi);
-    if hi - lo < 1e-9                              % all data at one value: pad it
-        pad = 0.1 * max(abs(lo), 1);
-        lo = lo - pad;  hi = hi + pad;
-    end
-    span = hi - lo;
-    step = 10 ^ floor(log10(span));
-    if span / step < 3, step = step / 5; elseif span / step < 6, step = step / 2; end
-    lims = [floor(lo / step) * step, ceil(hi / step) * step];
-    lims = round(lims / step) * step;              % clear floating-point dust
-end
-
-% ------------------------------------------------------------------------------
-function local_box_scatter(mx, sx, my, sy, names, colors, x_ticks, y_ticks)
-% One labelled point per texture set at (mx, my), in a borderless shaded box
-% spanning +/- (sx, sy); axis limits and ticks set to the given ticks' range.
+function local_cloud(x, y, names, colors)
+% Scatter one point per image (rows of x, y), one colour per texture set
+% (columns), each set with a shaded box spanning its mean +/- 1 SD on each axis,
+% and a legend naming the sets.
     hold on;
-    for s = 1:numel(mx)
-        patch(mx(s) + sx(s) * [-1 1 1 -1], my(s) + sy(s) * [-1 -1 1 1], colors(s, :), ...
-            'FaceAlpha', 0.25, 'EdgeColor', 'none');
-        plot(mx(s), my(s), 'o', 'MarkerSize', 7, ...
-            'MarkerFaceColor', colors(s, :), 'MarkerEdgeColor', colors(s, :));
-        text(mx(s) + sx(s), my(s), ['  ' names{s}], 'Color', colors(s, :), ...
-            'FontWeight', 'bold', 'VerticalAlignment', 'middle');
+    h = gobjects(1, size(x, 2));
+    for s = 1:size(x, 2)
+        mx = mean(x(:, s));  sx = std(x(:, s));
+        my = mean(y(:, s));  sy = std(y(:, s));
+        patch(mx + sx * [-1 1 1 -1], my + sy * [-1 -1 1 1], colors(s, :), ...
+            'FaceAlpha', 0.15, 'EdgeColor', colors(s, :), 'HandleVisibility', 'off');
+        h(s) = scatter(x(:, s), y(:, s), 25, colors(s, :), 'filled', ...
+            'MarkerFaceAlpha', 0.6, 'MarkerEdgeColor', 'none', 'DisplayName', names{s});
     end
-    xlim(x_ticks([1 end]));  ylim(y_ticks([1 end]));
-    set(gca, 'XTick', x_ticks, 'YTick', y_ticks);
+    grid on;  axis padded;                     % keep points at 1.0 off the axis edge
     xlabel('same/diff accuracy of patch pairs');
+    legend(h, 'Location', 'best');
 end

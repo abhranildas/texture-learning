@@ -10,12 +10,13 @@ function plot_dcon_pie(near, far, dim_labels)
 % Output
 %   none (draws a pie chart into the current axes)
 %
-%   The contributions are the classify_normals 'd_con', 'greedy' vector: starting
-%   from the dimension with the highest Bayes discriminability d', dimensions are
-%   added one at a time, each time the one that raises d' most, and each is
-%   credited with the d' it adds in quadrature, sqrt(d_after^2 - d_before^2). classify_normals is called with plotting off
-%   and samp_opt=0 (we want only d_con, not the sample-optimized boundary), and
-%   the pie is drawn here -- classify_normals' own colorbar is not used.
+%   The contributions are the classify_normals 'd_con', 'greedy' vector, measured
+%   on the data: d' of a set of dimensions is -2*norminv(error rate) of a
+%   quadratic boundary optimized on the samples of just those dimensions. Starting from the dimension with the highest d', dimensions
+%   are added one at a time, each time the one that raises d' most, and each is
+%   credited with the d' it adds in quadrature, sqrt(d_after^2 - d_before^2).
+%   classify_normals is called with plotting off, and the pie is drawn here --
+%   classify_normals' own colorbar is not used.
 %   Dimension k's slice is coloured dim_colors(d)(k,:) (no red or blue, which
 %   mean far and near), matching the coloured axis labels of the response clouds
 %   beside it. Dimensions contributing nothing get no slice.
@@ -27,7 +28,7 @@ function plot_dcon_pie(near, far, dim_labels)
 
     try
         res = classify_normals(near, far, 'input_type', 'samp', 'd_con', 'greedy', ...
-                               'plotmode', 0, 'samp_opt', 0);
+                               'plotmode', 0);
         d_con = max(real(res.d_con(:)), 0);       % guard against tiny imaginary/negative values
     catch
         text(0.5, 0.5, 'd'' contribution unavailable', 'Units', 'normalized', ...

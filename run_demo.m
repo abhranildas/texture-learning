@@ -331,4 +331,5 @@ fprintf('It has no ground-truth regions, so group_crit_best/mutual_weight_best a
 fprintf('and the fixed grouping parameters are the same as in Stage 7a.\n');
 plot_stage8_natural(cfg, ecc);
 
+save_demo_figures(cfg);     % PNGs for the README's demo section (docs/demo_figures)
 fprintf('\nDemo Complete! Check the generated figure windows.\n');
